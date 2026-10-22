@@ -47,7 +47,7 @@ const expenseTotals = (rows: Expense[]) =>
   formatTotals(
     totalsByCurrency(
       rows,
-      (e) => -e.gross_amount,
+      (e) => -(e.effective_gross_amount ?? e.gross_amount),
       (e) => e.currency,
     ),
   );
@@ -109,7 +109,7 @@ function ExpenseRow({
       ]}
       amount={
         <AmountText
-          cents={-e.gross_amount}
+          cents={-(e.effective_gross_amount ?? e.gross_amount)}
           currency={e.currency}
           className="block text-[14px]"
         />
@@ -137,6 +137,7 @@ export function ExpensesSegment({
   )
     ? (rawStatus as StatusFilter)
     : 'all';
+  const includeCancelled = params.get('include_cancelled') === '1';
   const noDocOnly = params.get('nodoc') === '1';
   const setParam = useSetFilterParam();
   const { rootRef, onReset } = useResetWithFocus('expenses');
@@ -158,6 +159,7 @@ export function ExpensesSegment({
   // The No-document predicate needs the archive: say so while it cannot
   // apply, and when it applies from a cached archive that failed to refresh.
   const applied: string[] = [];
+  if (includeCancelled) applied.push('Include cancelled');
   if (status !== 'all') applied.push(LABELS[status]);
   if (noDocOnly) {
     applied.push(
@@ -214,8 +216,13 @@ export function ExpensesSegment({
   // Chip counts honour the search AND the date range (data rule 6).
   const searched = (expensesQ.data ?? []).filter(
     (e) =>
+      (includeCancelled || !e.cancelled) &&
       inRange(e.tax_point_date, order) &&
-      expenseMatchesQuery(e, q, entityName(entities, e.supplier_id)),
+      expenseMatchesQuery(
+        { ...e, gross_amount: e.effective_gross_amount ?? e.gross_amount },
+        q,
+        entityName(entities, e.supplier_id),
+      ),
   );
   const counts = Object.fromEntries(
     STATUS_FILTERS.map((f) => [
@@ -232,11 +239,13 @@ export function ExpensesSegment({
   const sections = orderSections(filtered, order.order, (e) => ({
     id: e.id,
     day: e.tax_point_date,
-    amount: e.gross_amount,
+    amount: e.effective_gross_amount ?? e.gross_amount,
     currency: e.currency,
   }));
 
-  const total = (expensesQ.data ?? []).length;
+  const total = (expensesQ.data ?? []).filter(
+    (e) => includeCancelled || !e.cancelled,
+  ).length;
 
   return (
     <div ref={rootRef} tabIndex={-1} className="outline-none">
@@ -245,12 +254,22 @@ export function ExpensesSegment({
         active={status}
         onChange={(f) => setParam('status', f === 'all' ? null : f)}
         extra={
-          <FilterChip
-            active={noDocOnly}
-            onClick={() => setParam('nodoc', noDocOnly ? null : '1')}
-          >
-            📎 No document {noDocCount}
-          </FilterChip>
+          <>
+            <FilterChip
+              active={includeCancelled}
+              onClick={() =>
+                setParam('include_cancelled', includeCancelled ? null : '1')
+              }
+            >
+              Include cancelled
+            </FilterChip>
+            <FilterChip
+              active={noDocOnly}
+              onClick={() => setParam('nodoc', noDocOnly ? null : '1')}
+            >
+              📎 No document {noDocCount}
+            </FilterChip>
+          </>
         }
       />
       {activeFilters({

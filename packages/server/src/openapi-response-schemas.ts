@@ -50,6 +50,8 @@ export const expenseResponseSchema = {
     supplier_id: nullableIntegerSchema,
     category: stringSchema,
     gross_amount: numberSchema,
+    effective_gross_amount: numberSchema,
+    cancelled: { type: 'boolean' },
     vat_amount: numberSchema,
     currency: stringSchema,
     tax_point_date: stringSchema,

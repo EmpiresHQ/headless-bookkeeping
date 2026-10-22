@@ -204,3 +204,54 @@ describe('ExpensesSegment', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('cancelled expense history', () => {
+  it('excludes cancelled months, counts and totals until explicitly included, and reset hides them again', async () => {
+    const cancelled: Expense = {
+      ...EXPENSES[0],
+      id: 99,
+      category: 'cancelled-only',
+      supplier_id: null,
+      tax_point_date: '2024-12-10',
+      status: 'reversed',
+      cancelled: true,
+      effective_gross_amount: 0,
+      gross_amount: 158,
+    };
+    EXPENSES.push(cancelled);
+    try {
+      mount();
+      await screen.findByText('Telia Eesti AS');
+      expect(screen.queryByText('cancelled-only')).not.toBeInTheDocument();
+      expect(screen.queryByText('December 2024')).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /No document 2/ }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Corrected 0' }),
+      ).toBeInTheDocument();
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Include cancelled' }),
+      );
+      expect(await screen.findAllByText('cancelled-only')).toHaveLength(2);
+      expect(screen.getByText('December 2024')).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /No document 3/ }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Corrected 1' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('link', { name: /cancelled-only/ }),
+      ).toHaveTextContent('0.00');
+      await userEvent.click(
+        screen.getByRole('button', {
+          name: 'Reset filters, search, dates and order',
+        }),
+      );
+      expect(screen.queryByText('cancelled-only')).not.toBeInTheDocument();
+    } finally {
+      EXPENSES.pop();
+    }
+  });
+});

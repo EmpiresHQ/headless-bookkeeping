@@ -330,6 +330,115 @@ export class ExpensesService {
     }));
   }
 
+  /** List projection only: follow actual reversal links from the live posting.
+   * A financial correction already points at its replacement; its preceding
+   * original/reversal pair cancels exactly. Settlement vouchers are never part
+   * of this graph. Compare signed account/currency vectors, not double-entry
+   * totals (which are zero for EVERY balanced voucher).
+   */
+  async listExpenses(includeCancelled = false) {
+    const expenses = await this.getExpenses();
+    const vouchers = await this.db
+      .selectFrom('voucher')
+      .select(['id', 'reverses_id'])
+      .where('posted_at', 'is not', null)
+      .execute();
+    const children = new Map<number, number[]>();
+    for (const v of vouchers) {
+      if (v.reverses_id !== null) {
+        children.set(v.reverses_id, [
+          ...(children.get(v.reverses_id) ?? []),
+          v.id,
+        ]);
+      }
+    }
+    const chains = new Map<number, Set<number>>();
+    for (const e of expenses) {
+      if (e.voucher_id === null || !children.has(e.voucher_id)) continue;
+      const ids = new Set<number>();
+      const visit = (id: number) => {
+        if (ids.has(id)) return;
+        ids.add(id);
+        for (const child of children.get(id) ?? []) visit(child);
+      };
+      visit(e.voucher_id);
+      chains.set(e.id, ids);
+    }
+    const ids = [...new Set([...chains.values()].flatMap((c) => [...c]))];
+    const lines =
+      ids.length === 0
+        ? []
+        : await this.db
+            .selectFrom('voucher_line')
+            .innerJoin('account', 'account.id', 'voucher_line.account_id')
+            .select([
+              'voucher_line.voucher_id',
+              'voucher_line.account_id',
+              'voucher_line.currency',
+              'voucher_line.amount',
+              'voucher_line.base_amount',
+              'voucher_line.is_debit',
+              'account.code',
+            ])
+            .where('voucher_line.voucher_id', 'in', ids)
+            .execute();
+    const linesByVoucher = new Map<number, typeof lines>();
+    for (const line of lines) {
+      const group = linesByVoucher.get(line.voucher_id) ?? [];
+      group.push(line);
+      linesByVoucher.set(line.voucher_id, group);
+    }
+    return expenses
+      .map((e) => {
+        const chain = chains.get(e.id);
+        if (!chain)
+          return {
+            ...e,
+            cancelled: false,
+            effective_gross_amount: e.gross_amount,
+          };
+        const net = new Map<string, number>();
+        let originalCredit = 0;
+        let remainingCredit = 0;
+        const relatedLines = [...chain].flatMap(
+          (id) => linesByVoucher.get(id) ?? [],
+        );
+        for (const l of relatedLines) {
+          const sign = l.is_debit ? -1 : 1;
+          for (const [basis, amount] of [
+            ['original', l.amount],
+            ['base', l.base_amount],
+          ] as const) {
+            const key = `${l.account_id}:${l.currency}:${basis}`;
+            net.set(key, (net.get(key) ?? 0) + sign * amount);
+          }
+          // Gross counter-leg, excluding self-assessed VAT. Bank-valued
+          // purchases can have a different credit currency: the proportion is
+          // applied to the purchase's own original-currency gross.
+          if (
+            l.code === 'AP' ||
+            l.code === 'CLAIMANT_PAYABLE' ||
+            l.code === 'CASH' ||
+            l.code === 'BANK' ||
+            l.code.startsWith('BANK_')
+          ) {
+            remainingCredit += sign * l.amount;
+            if (l.voucher_id === e.voucher_id)
+              originalCredit += sign * l.amount;
+          }
+        }
+        const cancelled =
+          net.size > 0 && [...net.values()].every((amount) => amount === 0);
+        const effective = cancelled
+          ? 0
+          : originalCredit !== 0
+            ? Math.round((e.gross_amount * remainingCredit) / originalCredit)
+            : e.gross_amount;
+        return { ...e, cancelled, effective_gross_amount: effective };
+      })
+      .filter((e) => includeCancelled || !e.cancelled);
+  }
+
   /**
    * The subset of the given voucher ids that carry at least one
    * reconciliation_match — i.e. the expense's posted voucher is matched to a

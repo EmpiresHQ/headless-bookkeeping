@@ -7,8 +7,10 @@ import {
   Param,
   Body,
   ParseIntPipe,
+  Query,
 } from '@nestjs/common';
 import {
+  ApiQuery,
   ApiTags,
   ApiOperation,
   ApiParam,
@@ -52,11 +54,17 @@ export class ExpensesController {
   @Get()
   @ApiOperation({
     summary: 'List expenses',
-    description: 'Return all expenses.',
+    description:
+      'Return active expenses with effective amounts; include_cancelled=1 includes cancelled history. No pagination.',
   })
   @ApiOkResponse({ schema: expensesListResponseSchema })
-  async getExpenses() {
-    return { expenses: await this.expensesService.getExpenses() };
+  @ApiQuery({ name: 'include_cancelled', required: false, type: Boolean })
+  async getExpenses(@Query('include_cancelled') includeCancelled?: string) {
+    return {
+      expenses: await this.expensesService.listExpenses(
+        includeCancelled === '1' || includeCancelled === 'true',
+      ),
+    };
   }
 
   @Get(':id')

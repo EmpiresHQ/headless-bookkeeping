@@ -97,6 +97,8 @@ export interface Entity {
 }
 
 export interface Expense {
+  cancelled?: boolean;
+  effective_gross_amount?: number;
   id: number;
   supplier_id: number | null;
   category: string;
@@ -226,7 +228,9 @@ export const updateOrganization = (dto: UpdateOrganizationDto) =>
 export const getEntities = () =>
   apiFetch<{ entities: Entity[] }>('/api/entities').then((r) => r.entities);
 export const getExpenses = () =>
-  apiFetch<{ expenses: Expense[] }>('/api/expenses').then((r) => r.expenses);
+  apiFetch<{ expenses: Expense[] }>('/api/expenses?include_cancelled=1').then(
+    (r) => r.expenses,
+  );
 export const getInvoices = () =>
   apiFetch<{ invoices: SalesInvoice[] }>('/api/sales-invoices').then(
     (r) => r.invoices,

@@ -756,3 +756,17 @@ Document statuses: `pending → triaged | needs_triage`, `triaged → processed`
 - `docs/VISION.md`, `docs/V2-ROADMAP.md`, `README.md`.
 - ADRs (`docs/adr/`): 0001 (hidden ledger), 0002 (country plugin), 0005 (pipeline+policy), 0012 (no break-glass), 0013 (hash chain), 0015 (approvals/period-lock), 0016 (intent routing), 0018 (agents), 0019 (write path), 0024 (AI ingestion), 0025 (interaction seam), 0026 (audit log).
 - Known gaps for API-only operation: see `findings.md`.
+
+### Expense list cancellation history (#397)
+
+`GET /api/expenses` excludes fully cancelled purchases. Pass
+`?include_cancelled=1` (or `true`) to include retained history. Direct expense
+and source-document access is unchanged. List rows retain `gross_amount` as the
+stored purchase fact and add `effective_gross_amount` for display/aggregation
+and `cancelled` for visibility. Cancellation follows the live posting's actual
+reversal links and requires zero signed amounts in every account/currency in
+both original and base units. Settlements and supplier credit notes are separate
+economic events and do not cancel a purchase in this view. Financial replacements
+appear once at their corrected amount. The endpoint returns the whole list;
+there is no server pagination or independent total/count. Apply any downstream
+counts, totals and pagination to the already-filtered list, using effective amounts.

@@ -98,6 +98,131 @@ describe('Corrections (integration)', () => {
     await db.destroy();
   });
 
+  describe('expense list cancellation projection', () => {
+    async function postedExpense(gross = 10000) {
+      const expense = await expensesService.createExpense({
+        category: 'software',
+        gross_amount: gross,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+      });
+      const draft = await expensesService.generateDraftVoucher(expense.id);
+      const voucher = await postingService.postVoucher(draft);
+      await expensesService.updateExpenseStatus(
+        expense.id,
+        'posted',
+        voucher.id,
+      );
+      return { expense, draft, voucher };
+    }
+
+    it('hides actual full reversals and retains immutable history and direct detail', async () => {
+      const { expense } = await postedExpense();
+      await correctionsService.correctExpense(expense.id, {
+        kind: 'reversal',
+        reason: 'Cancelled purchase',
+      });
+      const before = await db.selectFrom('voucher_line').selectAll().execute();
+      expect(await expensesService.listExpenses()).toEqual([]);
+      expect(await expensesService.listExpenses(true)).toEqual([
+        expect.objectContaining({
+          id: expense.id,
+          cancelled: true,
+          effective_gross_amount: 0,
+          gross_amount: 10000,
+        }),
+      ]);
+      expect(
+        (await expensesService.getExpenseById(expense.id)).gross_amount,
+      ).toBe(10000);
+      expect(await db.selectFrom('voucher_line').selectAll().execute()).toEqual(
+        before,
+      );
+    });
+
+    it('shows a nonzero financial replacement once, even after rejecting a further correction', async () => {
+      const { expense } = await postedExpense();
+      await correctionsService.correctExpense(expense.id, {
+        kind: 'financial',
+        reason: 'Partial correction',
+        patch: { gross_amount: 6000, vat_amount: 0 },
+      });
+      expect(
+        await correctionsService.correctExpense(expense.id, {
+          kind: 'financial',
+          reason: 'Again',
+          patch: { gross_amount: 4000 },
+        }),
+      ).toEqual({ outcome: 'unsupported_status' });
+      expect(await expensesService.listExpenses()).toEqual([
+        expect.objectContaining({
+          id: expense.id,
+          cancelled: false,
+          effective_gross_amount: 6000,
+        }),
+      ]);
+    });
+
+    it('aggregates partial linked reversals, independent expenses, and reversals of reversals', async () => {
+      const { expense, draft, voucher } = await postedExpense();
+      const other = await postedExpense(8000);
+      const reversePart = async () =>
+        postingService.postVoucher({
+          ...draft,
+          reverses_id: voucher.id,
+          lines: draft.lines.map((l) => ({
+            ...l,
+            amount: l.amount / 2,
+            base_amount: l.base_amount / 2,
+            is_debit: !l.is_debit,
+          })),
+        });
+      const partial = await reversePart();
+      expect(await expensesService.listExpenses()).toEqual([
+        expect.objectContaining({
+          id: expense.id,
+          effective_gross_amount: 5000,
+          cancelled: false,
+        }),
+        expect.objectContaining({
+          id: other.expense.id,
+          effective_gross_amount: 8000,
+        }),
+      ]);
+      await reversePart();
+      expect((await expensesService.listExpenses()).map((e) => e.id)).toEqual([
+        other.expense.id,
+      ]);
+      await postingService.postVoucher({
+        ...draft,
+        reverses_id: partial.id,
+        lines: draft.lines.map((l) => ({
+          ...l,
+          amount: l.amount / 2,
+          base_amount: l.base_amount / 2,
+        })),
+      });
+      expect((await expensesService.listExpenses())[0]).toMatchObject({
+        id: expense.id,
+        effective_gross_amount: 5000,
+        cancelled: false,
+      });
+    });
+
+    it('does not infer cancellation from terminal status without an actual reversal', async () => {
+      const { expense, voucher } = await postedExpense();
+      await expensesService.updateExpenseStatus(
+        expense.id,
+        'reversed',
+        voucher.id,
+      );
+      expect(await expensesService.listExpenses()).toEqual([
+        expect.objectContaining({ id: expense.id, cancelled: false }),
+      ]);
+    });
+  });
+
   describe('draft correction', () => {
     it('edits the expense object and returns a new draft voucher', async () => {
       const expense = await expensesService.createExpense({
@@ -384,6 +509,10 @@ describe('Corrections (integration)', () => {
         result.reversalVoucherId as number,
       );
       expect(reversal!.tax_point_date).toBe('2026-04-01');
+      expect(await expensesService.listExpenses()).toEqual([]);
+      expect(await expensesService.listExpenses(true)).toEqual([
+        expect.objectContaining({ id: expense.id, cancelled: true }),
+      ]);
     });
   });
 
