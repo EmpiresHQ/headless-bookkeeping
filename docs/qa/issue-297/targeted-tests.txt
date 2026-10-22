@@ -1,0 +1,15 @@
+
+> @headless-bookkeeping/web@0.0.1 test
+> vitest run src/books/ExpenseScreen.test.tsx src/ui/ConfirmDialog.test.tsx src/ui/Button.test.tsx --minWorkers=1 --maxWorkers=2
+
+
+ RUN  v2.1.9 /root/.cache/hbk-worktrees/issue-297/packages/web
+
+ ✓ src/ui/Button.test.tsx (10 tests) 230ms
+ ✓ src/books/ExpenseScreen.test.tsx (13 tests) 1131ms
+ ✓ src/ui/ConfirmDialog.test.tsx (3 tests) 298ms
+
+ Test Files  3 passed (3)
+      Tests  26 passed (26)
+   Start at  16:41:02
+   Duration  5.50s (transform 1.00s, setup 318ms, collect 2.03s, tests 1.66s, environment 1.95s, prepare 697ms)
