@@ -1,0 +1,1832 @@
+{
+  "synthetic": true,
+  "node": "v24.21.0",
+  "started": "2026-10-22T13:41:55.367Z",
+  "cases": [
+    {
+      "name": "create-invoice",
+      "width": 320,
+      "height": 568,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/sales-invoices",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "POST",
+          "path": "/api/sales-invoices",
+          "forwarded": false
+        }
+      ],
+      "numberInputEnd": {
+        "value": "SYNTHETIC-INVOICE-297-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ-LONG-MEANINGFUL-SUFFIX",
+        "clientWidth": 278,
+        "scrollWidth": 762,
+        "scrollLeft": 484,
+        "caret": 82
+      },
+      "numberInputHome": {
+        "value": "SYNTHETIC-INVOICE-297-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ-LONG-MEANINGFUL-SUFFIX",
+        "clientWidth": 278,
+        "scrollWidth": 762,
+        "scrollLeft": 0,
+        "caret": 0
+      },
+      "initial": {
+        "dialog": {
+          "x": 0,
+          "y": 74.22219848632812,
+          "w": 320,
+          "h": 522.546875,
+          "right": 320,
+          "bottom": 596.7690734863281
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1568,
+        "clientHeight": 523,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 268,
+            "y": 82.22219848632812,
+            "w": 44,
+            "h": 44,
+            "right": 312,
+            "bottom": 126.22219848632812,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 20,
+            "y": 280.7221984863281,
+            "w": 280,
+            "h": 41,
+            "right": 300,
+            "bottom": 321.7221984863281,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "New customer…",
+            "x": 20,
+            "y": 327.7221984863281,
+            "w": 104,
+            "h": 19.5,
+            "right": 124,
+            "bottom": 347.2221984863281,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 104,
+            "clientWidth": 104
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 20,
+            "y": 704.72216796875,
+            "w": 280,
+            "h": 65,
+            "right": 300,
+            "bottom": 769.72216796875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "wheelSteps": 1,
+      "afterWheel": {
+        "dialog": {
+          "x": 0,
+          "y": 47.05964279174805,
+          "w": 320,
+          "h": 522.546875,
+          "right": 320,
+          "bottom": 569.606517791748
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1568,
+        "clientHeight": 523,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 268,
+            "y": 55.05964279174805,
+            "w": 44,
+            "h": 44.000003814697266,
+            "right": 312,
+            "bottom": 99.05964660644531,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 20,
+            "y": 36.55964279174805,
+            "w": 280,
+            "h": 41.000003814697266,
+            "right": 300,
+            "bottom": 77.55964660644531,
+            "inView": true,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "New customer…",
+            "x": 20,
+            "y": 83.55964660644531,
+            "w": 104,
+            "h": 19.5,
+            "right": 124,
+            "bottom": 103.05964660644531,
+            "inView": true,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 104,
+            "clientWidth": 104
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 20,
+            "y": 460.55963134765625,
+            "w": 280,
+            "h": 65,
+            "right": 300,
+            "bottom": 525.5596313476562,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 221.74058532714844,
+          "bottom": 241.24058532714844,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "SYNTHETIC CustomerEE · #4",
+          "role": "BUTTON",
+          "top": 275.0086669921875,
+          "bottom": 316.0086669921875,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "New customer…",
+          "role": "BUTTON",
+          "top": 321.953125,
+          "bottom": 341.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 378.453125,
+          "bottom": 422.953125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 458.453125,
+          "bottom": 502.953125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 497.453125,
+          "bottom": 543.953125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 497.453125,
+          "bottom": 543.953125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 497.453125,
+          "bottom": 543.953125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 497.453125,
+          "bottom": 543.953125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 380.453125,
+          "bottom": 426.953125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 380.453125,
+          "bottom": 426.953125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 380.453125,
+          "bottom": 426.953125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 380.453125,
+          "bottom": 426.953125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Create invoice · +9999999.99 €",
+          "role": "BUTTON",
+          "top": 458.953125,
+          "bottom": 523.953125,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "beforeBusy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 20,
+        "y": 458.953125,
+        "w": 280,
+        "h": 65,
+        "right": 300,
+        "bottom": 523.953125,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 280,
+        "clientWidth": 280
+      },
+      "busy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 20,
+        "y": 458.953125,
+        "w": 280,
+        "h": 65,
+        "right": 300,
+        "bottom": 523.953125,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 280,
+        "clientWidth": 280
+      },
+      "pendingStatus": [
+        "Saving… the form is locked until the server answers."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "expense-facts",
+      "width": 320,
+      "height": 568,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [],
+      "interceptedWrites": [],
+      "geometry": {
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 1172.5,
+          "right": 320,
+          "bottom": 1172.5
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1173,
+        "clientHeight": 1173,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "📎Attach receipt…No source document yet — upload it or pick one from Documents›",
+            "x": 14,
+            "y": 685.5,
+            "w": 292,
+            "h": 102,
+            "right": 306,
+            "bottom": 787.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 292,
+            "clientWidth": 292
+          },
+          {
+            "label": "Submit for posting",
+            "x": 20,
+            "y": 910,
+            "w": 280,
+            "h": 42.5,
+            "right": 300,
+            "bottom": 952.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "Edit draft…",
+            "x": 20,
+            "y": 960.5,
+            "w": 280,
+            "h": 42.5,
+            "right": 300,
+            "bottom": 1003,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "Delete draft…",
+            "x": 20,
+            "y": 1011,
+            "w": 280,
+            "h": 42.5,
+            "right": 300,
+            "bottom": 1053.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "containsFullIdentifier": true,
+      "geometryNoHorizontalOverflow": true,
+      "ok": true
+    },
+    {
+      "name": "create-invoice",
+      "width": 320,
+      "height": 568,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/sales-invoices",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "POST",
+          "path": "/api/sales-invoices",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 54,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "numberInputEnd": {
+        "value": "SYNTHETIC-INVOICE-297-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ-LONG-MEANINGFUL-SUFFIX",
+        "clientWidth": 278,
+        "scrollWidth": 1500,
+        "scrollLeft": 1222,
+        "caret": 82
+      },
+      "numberInputHome": {
+        "value": "SYNTHETIC-INVOICE-297-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ-LONG-MEANINGFUL-SUFFIX",
+        "clientWidth": 278,
+        "scrollWidth": 1500,
+        "scrollLeft": 0,
+        "caret": 0
+      },
+      "initial": {
+        "dialog": {
+          "x": 0,
+          "y": 74.20490264892578,
+          "w": 320,
+          "h": 522.546875,
+          "right": 320,
+          "bottom": 596.7517776489258
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1568,
+        "clientHeight": 523,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 268,
+            "y": 82.20490264892578,
+            "w": 44,
+            "h": 44,
+            "right": 312,
+            "bottom": 126.20490264892578,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 20,
+            "y": 478.20489501953125,
+            "w": 280,
+            "h": 146,
+            "right": 300,
+            "bottom": 624.2048950195312,
+            "inView": false,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "New customer…",
+            "x": 20,
+            "y": 631.2048950195312,
+            "w": 208,
+            "h": 39,
+            "right": 228,
+            "bottom": 670.2048950195312,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 208,
+            "clientWidth": 208
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 20,
+            "y": 1251.2049560546875,
+            "w": 280,
+            "h": 155,
+            "right": 300,
+            "bottom": 1406.2049560546875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "wheelSteps": 3,
+      "afterWheel": {
+        "dialog": {
+          "x": 0,
+          "y": 45.453125,
+          "w": 320,
+          "h": 522.546875,
+          "right": 320,
+          "bottom": 568
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1568,
+        "clientHeight": 523,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 268,
+            "y": 53.453125,
+            "w": 44,
+            "h": 44,
+            "right": 312,
+            "bottom": 97.453125,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 20,
+            "y": -403.546875,
+            "w": 280,
+            "h": 146,
+            "right": 300,
+            "bottom": -257.546875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "New customer…",
+            "x": 20,
+            "y": -250.546875,
+            "w": 208,
+            "h": 39,
+            "right": 228,
+            "bottom": -211.546875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 208,
+            "clientWidth": 208
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 20,
+            "y": 369.453125,
+            "w": 280,
+            "h": 155,
+            "right": 300,
+            "bottom": 524.453125,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 347.953125,
+          "bottom": 386.953125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "SYNTHETIC CustomerEE · #4",
+          "role": "BUTTON",
+          "top": 398.453125,
+          "bottom": 544.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "New customer…",
+          "role": "BUTTON",
+          "top": 348.453125,
+          "bottom": 387.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 444.453125,
+          "bottom": 511.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 334.453125,
+          "bottom": 401.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 475.453125,
+          "bottom": 544.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 475.453125,
+          "bottom": 544.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 475.453125,
+          "bottom": 544.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 475.453125,
+          "bottom": 544.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 333.453125,
+          "bottom": 402.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 333.453125,
+          "bottom": 402.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 333.453125,
+          "bottom": 402.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 333.453125,
+          "bottom": 402.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Create invoice · +9999999.99 €",
+          "role": "BUTTON",
+          "top": 389.453125,
+          "bottom": 544.453125,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "beforeBusy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 20,
+        "y": 389.453125,
+        "w": 280,
+        "h": 155,
+        "right": 300,
+        "bottom": 544.453125,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 280,
+        "clientWidth": 280
+      },
+      "busy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 20,
+        "y": 389.453125,
+        "w": 280,
+        "h": 155,
+        "right": 300,
+        "bottom": 544.453125,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 280,
+        "clientWidth": 280
+      },
+      "pendingStatus": [
+        "Saving… the form is locked until the server answers."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "expense-facts",
+      "width": 320,
+      "height": 568,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [],
+      "interceptedWrites": [],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 56,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "geometry": {
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 3060,
+          "right": 320,
+          "bottom": 3060
+        },
+        "scrollTop": 0,
+        "scrollHeight": 3060,
+        "clientHeight": 3060,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "📎Attach receipt…No source document yet — upload it or pick one from Documents›",
+            "x": 14,
+            "y": 2170,
+            "w": 292,
+            "h": 336,
+            "right": 306,
+            "bottom": 2506,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 292,
+            "clientWidth": 292
+          },
+          {
+            "label": "Submit for posting",
+            "x": 20,
+            "y": 2685,
+            "w": 280,
+            "h": 110,
+            "right": 300,
+            "bottom": 2795,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "Edit draft…",
+            "x": 20,
+            "y": 2803,
+            "w": 280,
+            "h": 65,
+            "right": 300,
+            "bottom": 2868,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "Delete draft…",
+            "x": 20,
+            "y": 2876,
+            "w": 280,
+            "h": 65,
+            "right": 300,
+            "bottom": 2941,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "containsFullIdentifier": true,
+      "geometryNoHorizontalOverflow": true,
+      "ok": true
+    },
+    {
+      "name": "create-invoice",
+      "width": 844,
+      "height": 390,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/sales-invoices",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "POST",
+          "path": "/api/sales-invoices",
+          "forwarded": false
+        }
+      ],
+      "numberInputEnd": {
+        "value": "SYNTHETIC-INVOICE-297-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ-LONG-MEANINGFUL-SUFFIX",
+        "clientWidth": 534,
+        "scrollWidth": 762,
+        "scrollLeft": 228,
+        "caret": 82
+      },
+      "numberInputHome": {
+        "value": "SYNTHETIC-INVOICE-297-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ-LONG-MEANINGFUL-SUFFIX",
+        "clientWidth": 534,
+        "scrollWidth": 762,
+        "scrollLeft": 0,
+        "caret": 0
+      },
+      "initial": {
+        "dialog": {
+          "x": 134,
+          "y": 50.944984436035156,
+          "w": 576,
+          "h": 358.796875,
+          "right": 710,
+          "bottom": 409.74185943603516
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1076,
+        "clientHeight": 359,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 658,
+            "y": 58.944984436035156,
+            "w": 44,
+            "h": 44,
+            "right": 702,
+            "bottom": 102.94498443603516,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 154,
+            "y": 280.4449768066406,
+            "w": 536,
+            "h": 41,
+            "right": 690,
+            "bottom": 321.4449768066406,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "New customer…",
+            "x": 154,
+            "y": 327.4449768066406,
+            "w": 104,
+            "h": 19.5,
+            "right": 258,
+            "bottom": 346.9449768066406,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 104,
+            "clientWidth": 104
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 154,
+            "y": 704.4450073242188,
+            "w": 536,
+            "h": 42.5,
+            "right": 690,
+            "bottom": 746.9450073242188,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          }
+        ]
+      },
+      "wheelSteps": 2,
+      "afterWheel": {
+        "dialog": {
+          "x": 134,
+          "y": 31.241235733032227,
+          "w": 576,
+          "h": 358.796875,
+          "right": 710,
+          "bottom": 390.0381107330322
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1076,
+        "clientHeight": 359,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 658,
+            "y": 39.241233825683594,
+            "w": 44,
+            "h": 44,
+            "right": 702,
+            "bottom": 83.2412338256836,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 154,
+            "y": -120.2587661743164,
+            "w": 536,
+            "h": 41,
+            "right": 690,
+            "bottom": -79.2587661743164,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "New customer…",
+            "x": 154,
+            "y": -73.2587661743164,
+            "w": 104,
+            "h": 19.5,
+            "right": 258,
+            "bottom": -53.758766174316406,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 104,
+            "clientWidth": 104
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 154,
+            "y": 303.7412414550781,
+            "w": 536,
+            "h": 42.5,
+            "right": 690,
+            "bottom": 346.2412414550781,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 206.953125,
+          "bottom": 226.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "SYNTHETIC CustomerEE · #4",
+          "role": "BUTTON",
+          "top": 260.703125,
+          "bottom": 301.703125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "New customer…",
+          "role": "BUTTON",
+          "top": 307.703125,
+          "bottom": 327.203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 321.203125,
+          "bottom": 365.703125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 207.203125,
+          "bottom": 251.703125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 287.203125,
+          "bottom": 333.703125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 287.203125,
+          "bottom": 333.703125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 287.203125,
+          "bottom": 333.703125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 287.203125,
+          "bottom": 333.703125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 225.203125,
+          "bottom": 271.703125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 225.203125,
+          "bottom": 271.703125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 225.203125,
+          "bottom": 271.703125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 225.203125,
+          "bottom": 271.703125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Create invoice · +9999999.99 €",
+          "role": "BUTTON",
+          "top": 303.703125,
+          "bottom": 346.203125,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "beforeBusy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 154,
+        "y": 303.703125,
+        "w": 536,
+        "h": 42.5,
+        "right": 690,
+        "bottom": 346.203125,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 536,
+        "clientWidth": 536
+      },
+      "busy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 154,
+        "y": 303.703125,
+        "w": 536,
+        "h": 42.5,
+        "right": 690,
+        "bottom": 346.203125,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 536,
+        "clientWidth": 536
+      },
+      "pendingStatus": [
+        "Saving… the form is locked until the server answers."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "expense-facts",
+      "width": 844,
+      "height": 390,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [],
+      "interceptedWrites": [],
+      "geometry": {
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "w": 844,
+          "h": 972,
+          "right": 844,
+          "bottom": 972
+        },
+        "scrollTop": 0,
+        "scrollHeight": 972,
+        "clientHeight": 972,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "📎Attach receipt…No source document yet — upload it or pick one from Documents›",
+            "x": 52,
+            "y": 522.5,
+            "w": 740,
+            "h": 64.5,
+            "right": 792,
+            "bottom": 587,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 740,
+            "clientWidth": 740
+          },
+          {
+            "label": "Submit for posting",
+            "x": 58,
+            "y": 709.5,
+            "w": 728,
+            "h": 42.5,
+            "right": 786,
+            "bottom": 752,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 728,
+            "clientWidth": 728
+          },
+          {
+            "label": "Edit draft…",
+            "x": 58,
+            "y": 760,
+            "w": 728,
+            "h": 42.5,
+            "right": 786,
+            "bottom": 802.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 728,
+            "clientWidth": 728
+          },
+          {
+            "label": "Delete draft…",
+            "x": 58,
+            "y": 810.5,
+            "w": 728,
+            "h": 42.5,
+            "right": 786,
+            "bottom": 853,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 728,
+            "clientWidth": 728
+          }
+        ]
+      },
+      "containsFullIdentifier": true,
+      "geometryNoHorizontalOverflow": true,
+      "ok": true
+    },
+    {
+      "name": "create-invoice",
+      "width": 844,
+      "height": 390,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/sales-invoices",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "POST",
+          "path": "/api/sales-invoices",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 54,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "numberInputEnd": {
+        "value": "SYNTHETIC-INVOICE-297-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ-LONG-MEANINGFUL-SUFFIX",
+        "clientWidth": 534,
+        "scrollWidth": 1500,
+        "scrollLeft": 966,
+        "caret": 82
+      },
+      "numberInputHome": {
+        "value": "SYNTHETIC-INVOICE-297-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ-LONG-MEANINGFUL-SUFFIX",
+        "clientWidth": 534,
+        "scrollWidth": 1500,
+        "scrollLeft": 0,
+        "caret": 0
+      },
+      "initial": {
+        "dialog": {
+          "x": 134,
+          "y": 100.75397491455078,
+          "w": 576,
+          "h": 358.796875,
+          "right": 710,
+          "bottom": 459.5508499145508
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1076,
+        "clientHeight": 359,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 658,
+            "y": 108.75397491455078,
+            "w": 44,
+            "h": 43.99999237060547,
+            "right": 702,
+            "bottom": 152.75396728515625,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 154,
+            "y": 459.75396728515625,
+            "w": 536,
+            "h": 62,
+            "right": 690,
+            "bottom": 521.7539672851562,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "New customer…",
+            "x": 154,
+            "y": 528.7539672851562,
+            "w": 208,
+            "h": 39,
+            "right": 362,
+            "bottom": 567.7539672851562,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 208,
+            "clientWidth": 208
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 154,
+            "y": 1109.7540283203125,
+            "w": 536,
+            "h": 110,
+            "right": 690,
+            "bottom": 1219.7540283203125,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          }
+        ]
+      },
+      "wheelSteps": 3,
+      "afterWheel": {
+        "dialog": {
+          "x": 134,
+          "y": 31.24125862121582,
+          "w": 576,
+          "h": 358.796875,
+          "right": 710,
+          "bottom": 390.0381336212158
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1076,
+        "clientHeight": 359,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 658,
+            "y": 39.24125671386719,
+            "w": 44,
+            "h": 44,
+            "right": 702,
+            "bottom": 83.24125671386719,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 154,
+            "y": -413.75872802734375,
+            "w": 536,
+            "h": 62,
+            "right": 690,
+            "bottom": -351.75872802734375,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "New customer…",
+            "x": 154,
+            "y": -344.75872802734375,
+            "w": 208,
+            "h": 39,
+            "right": 362,
+            "bottom": -305.75872802734375,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 208,
+            "clientWidth": 208
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 154,
+            "y": 236.2412567138672,
+            "w": 536,
+            "h": 110.00001525878906,
+            "right": 690,
+            "bottom": 346.24127197265625,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 223.703125,
+          "bottom": 262.703125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "SYNTHETIC CustomerEE · #4",
+          "role": "BUTTON",
+          "top": 304.203125,
+          "bottom": 366.203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "New customer…",
+          "role": "BUTTON",
+          "top": 224.203125,
+          "bottom": 263.203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 299.203125,
+          "bottom": 366.203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 210.203125,
+          "bottom": 277.203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 297.203125,
+          "bottom": 366.203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 297.203125,
+          "bottom": 366.203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 297.203125,
+          "bottom": 366.203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 297.203125,
+          "bottom": 366.203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 209.203125,
+          "bottom": 278.203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 209.203125,
+          "bottom": 278.203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 209.203125,
+          "bottom": 278.203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 209.203125,
+          "bottom": 278.203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Create invoice · +9999999.99 €",
+          "role": "BUTTON",
+          "top": 256.203125,
+          "bottom": 366.203125,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "beforeBusy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 154,
+        "y": 256.203125,
+        "w": 536,
+        "h": 110,
+        "right": 690,
+        "bottom": 366.203125,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 536,
+        "clientWidth": 536
+      },
+      "busy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 154,
+        "y": 256.203125,
+        "w": 536,
+        "h": 110,
+        "right": 690,
+        "bottom": 366.203125,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 536,
+        "clientWidth": 536
+      },
+      "pendingStatus": [
+        "Saving… the form is locked until the server answers."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "expense-facts",
+      "width": 844,
+      "height": 390,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [],
+      "interceptedWrites": [],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 56,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "geometry": {
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "w": 844,
+          "h": 1739.5,
+          "right": 844,
+          "bottom": 1739.5
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1740,
+        "clientHeight": 1740,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "📎Attach receipt…No source document yet — upload it or pick one from Documents›",
+            "x": 52,
+            "y": 1088,
+            "w": 740,
+            "h": 142.5,
+            "right": 792,
+            "bottom": 1230.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 740,
+            "clientWidth": 740
+          },
+          {
+            "label": "Submit for posting",
+            "x": 58,
+            "y": 1409.5,
+            "w": 728,
+            "h": 65,
+            "right": 786,
+            "bottom": 1474.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 728,
+            "clientWidth": 728
+          },
+          {
+            "label": "Edit draft…",
+            "x": 58,
+            "y": 1482.5,
+            "w": 728,
+            "h": 65,
+            "right": 786,
+            "bottom": 1547.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 728,
+            "clientWidth": 728
+          },
+          {
+            "label": "Delete draft…",
+            "x": 58,
+            "y": 1555.5,
+            "w": 728,
+            "h": 65,
+            "right": 786,
+            "bottom": 1620.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 728,
+            "clientWidth": 728
+          }
+        ]
+      },
+      "containsFullIdentifier": true,
+      "geometryNoHorizontalOverflow": true,
+      "ok": true
+    }
+  ],
+  "browser": "153.0.8010.12"
+}

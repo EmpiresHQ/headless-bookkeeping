@@ -1,0 +1,6293 @@
+{
+  "synthetic": true,
+  "node": "v24.21.0",
+  "started": "2026-10-22T13:38:19.943Z",
+  "cases": [
+    {
+      "name": "expense-confirm",
+      "width": 320,
+      "height": 568,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/expenses/297",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/expenses/297",
+          "forwarded": false
+        }
+      ],
+      "initial": {
+        "dialog": {
+          "x": 24,
+          "y": 164.75,
+          "w": 272,
+          "h": 238.5,
+          "right": 296,
+          "bottom": 403.25
+        },
+        "scrollTop": 0,
+        "scrollHeight": 239,
+        "clientHeight": 239,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 340.75,
+            "w": 111,
+            "h": 42.5,
+            "right": 155,
+            "bottom": 383.25,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          },
+          {
+            "label": "Delete",
+            "x": 165,
+            "y": 340.75,
+            "w": 111,
+            "h": 42.5,
+            "right": 276,
+            "bottom": 383.25,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          }
+        ]
+      },
+      "wheelSteps": 0,
+      "afterWheel": {
+        "dialog": {
+          "x": 24,
+          "y": 164.75,
+          "w": 272,
+          "h": 238.5,
+          "right": 296,
+          "bottom": 403.25
+        },
+        "scrollTop": 0,
+        "scrollHeight": 239,
+        "clientHeight": 239,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 340.75,
+            "w": 111,
+            "h": 42.5,
+            "right": 155,
+            "bottom": 383.25,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          },
+          {
+            "label": "Delete",
+            "x": 165,
+            "y": 340.75,
+            "w": 111,
+            "h": 42.5,
+            "right": 276,
+            "bottom": 383.25,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete",
+          "role": "BUTTON",
+          "top": 340.75,
+          "bottom": 383.25,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 340.75,
+          "bottom": 383.25,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete",
+          "role": "BUTTON",
+          "top": 340.75,
+          "bottom": 383.25,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 340.75,
+          "bottom": 383.25,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete",
+        "x": 165,
+        "y": 340.75,
+        "w": 111,
+        "h": 42.5,
+        "right": 276,
+        "bottom": 383.25,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 111,
+        "clientWidth": 111
+      },
+      "busy": {
+        "label": "Delete",
+        "x": 165,
+        "y": 340.75,
+        "w": 111,
+        "h": 42.5,
+        "right": 276,
+        "bottom": 383.25,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 111,
+        "clientWidth": 111
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "entity-long",
+      "width": 320,
+      "height": 568,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/entities/1",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/entities/1",
+          "forwarded": false
+        }
+      ],
+      "initial": {
+        "dialog": {
+          "x": 24,
+          "y": 115.625,
+          "w": 272,
+          "h": 336.75,
+          "right": 296,
+          "bottom": 452.375
+        },
+        "scrollTop": 0,
+        "scrollHeight": 337,
+        "clientHeight": 337,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 367.375,
+            "w": 111,
+            "h": 65,
+            "right": 155,
+            "bottom": 432.375,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          },
+          {
+            "label": "Delete entity",
+            "x": 165,
+            "y": 367.375,
+            "w": 111,
+            "h": 65,
+            "right": 276,
+            "bottom": 432.375,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          }
+        ]
+      },
+      "wheelSteps": 0,
+      "afterWheel": {
+        "dialog": {
+          "x": 24,
+          "y": 115.625,
+          "w": 272,
+          "h": 336.75,
+          "right": 296,
+          "bottom": 452.375
+        },
+        "scrollTop": 0,
+        "scrollHeight": 337,
+        "clientHeight": 337,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 367.375,
+            "w": 111,
+            "h": 65,
+            "right": 155,
+            "bottom": 432.375,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          },
+          {
+            "label": "Delete entity",
+            "x": 165,
+            "y": 367.375,
+            "w": 111,
+            "h": 65,
+            "right": 276,
+            "bottom": 432.375,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 367.375,
+          "bottom": 432.375,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 367.375,
+          "bottom": 432.375,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 367.375,
+          "bottom": 432.375,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 367.375,
+          "bottom": 432.375,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete entity",
+        "x": 165,
+        "y": 367.375,
+        "w": 111,
+        "h": 65,
+        "right": 276,
+        "bottom": 432.375,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 111,
+        "clientWidth": 111
+      },
+      "busy": {
+        "label": "Delete entity",
+        "x": 165,
+        "y": 367.375,
+        "w": 111,
+        "h": 65,
+        "right": 276,
+        "bottom": 432.375,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 111,
+        "clientWidth": 111
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "entity-stress",
+      "width": 320,
+      "height": 568,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/entities/2",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/entities/2",
+          "forwarded": false
+        }
+      ],
+      "initial": {
+        "dialog": {
+          "x": 24,
+          "y": 16,
+          "w": 272,
+          "h": 536,
+          "right": 296,
+          "bottom": 552
+        },
+        "scrollTop": 0,
+        "scrollHeight": 762,
+        "clientHeight": 536,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 693,
+            "w": 111,
+            "h": 65,
+            "right": 155,
+            "bottom": 758,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          },
+          {
+            "label": "Delete entity",
+            "x": 165,
+            "y": 693,
+            "w": 111,
+            "h": 65,
+            "right": 276,
+            "bottom": 758,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          }
+        ]
+      },
+      "wheelSteps": 1,
+      "afterWheel": {
+        "dialog": {
+          "x": 24,
+          "y": 16,
+          "w": 272,
+          "h": 536,
+          "right": 296,
+          "bottom": 552
+        },
+        "scrollTop": 226,
+        "scrollHeight": 762,
+        "clientHeight": 536,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 467,
+            "w": 111,
+            "h": 65,
+            "right": 155,
+            "bottom": 532,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          },
+          {
+            "label": "Delete entity",
+            "x": 165,
+            "y": 467,
+            "w": 111,
+            "h": 65,
+            "right": 276,
+            "bottom": 532,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 467,
+          "bottom": 532,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 467,
+          "bottom": 532,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 467,
+          "bottom": 532,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 467,
+          "bottom": 532,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete entity",
+        "x": 165,
+        "y": 467,
+        "w": 111,
+        "h": 65,
+        "right": 276,
+        "bottom": 532,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 111,
+        "clientWidth": 111
+      },
+      "busy": {
+        "label": "Delete entity",
+        "x": 165,
+        "y": 467,
+        "w": 111,
+        "h": 65,
+        "right": 276,
+        "bottom": 532,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 111,
+        "clientWidth": 111
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "entity-unbroken",
+      "width": 320,
+      "height": 568,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/entities/3",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/entities/3",
+          "forwarded": false
+        }
+      ],
+      "initial": {
+        "dialog": {
+          "x": 24,
+          "y": 85.25,
+          "w": 272,
+          "h": 397.5,
+          "right": 296,
+          "bottom": 482.75
+        },
+        "scrollTop": 0,
+        "scrollHeight": 398,
+        "clientHeight": 398,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 397.75,
+            "w": 111,
+            "h": 65,
+            "right": 155,
+            "bottom": 462.75,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          },
+          {
+            "label": "Delete entity",
+            "x": 165,
+            "y": 397.75,
+            "w": 111,
+            "h": 65,
+            "right": 276,
+            "bottom": 462.75,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          }
+        ]
+      },
+      "wheelSteps": 0,
+      "afterWheel": {
+        "dialog": {
+          "x": 24,
+          "y": 85.25,
+          "w": 272,
+          "h": 397.5,
+          "right": 296,
+          "bottom": 482.75
+        },
+        "scrollTop": 0,
+        "scrollHeight": 398,
+        "clientHeight": 398,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 397.75,
+            "w": 111,
+            "h": 65,
+            "right": 155,
+            "bottom": 462.75,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          },
+          {
+            "label": "Delete entity",
+            "x": 165,
+            "y": 397.75,
+            "w": 111,
+            "h": 65,
+            "right": 276,
+            "bottom": 462.75,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 111,
+            "clientWidth": 111
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 397.75,
+          "bottom": 462.75,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 397.75,
+          "bottom": 462.75,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 397.75,
+          "bottom": 462.75,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 397.75,
+          "bottom": 462.75,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete entity",
+        "x": 165,
+        "y": 397.75,
+        "w": 111,
+        "h": 65,
+        "right": 276,
+        "bottom": 462.75,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 111,
+        "clientWidth": 111
+      },
+      "busy": {
+        "label": "Delete entity",
+        "x": 165,
+        "y": 397.75,
+        "w": 111,
+        "h": 65,
+        "right": 276,
+        "bottom": 462.75,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 111,
+        "clientWidth": 111
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "create-expense",
+      "width": 320,
+      "height": 568,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/expenses",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "POST",
+          "path": "/api/expenses",
+          "forwarded": false
+        }
+      ],
+      "initial": {
+        "dialog": {
+          "x": 0,
+          "y": 292.1759948730469,
+          "w": 320,
+          "h": 522.546875,
+          "right": 320,
+          "bottom": 814.7228698730469
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1568,
+        "clientHeight": 523,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 268,
+            "y": 300.1759948730469,
+            "w": 44,
+            "h": 44,
+            "right": 312,
+            "bottom": 344.1759948730469,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC Põhja-Eesti Raamatupidamis- ja Maksunõustamisteenuste Keskus ning Partnerid Rahvusvaheline Esindus TallinnasEE · #1",
+            "x": 20,
+            "y": -707.823974609375,
+            "w": 280,
+            "h": 147,
+            "right": 300,
+            "bottom": -560.823974609375,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "SYNTHETIC Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜEE · #2",
+            "x": 20,
+            "y": -560.823974609375,
+            "w": 280,
+            "h": 777,
+            "right": 300,
+            "bottom": 216.176025390625,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "SYNTHETIC-UnbrokenSupplierRegistrationIdentifier0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZEE · #3",
+            "x": 20,
+            "y": 216.17599487304688,
+            "w": 280,
+            "h": 209,
+            "right": 300,
+            "bottom": 425.1759948730469,
+            "inView": true,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "New supplier…",
+            "x": 20,
+            "y": 431.1759948730469,
+            "w": 104,
+            "h": 19.5,
+            "right": 124,
+            "bottom": 450.6759948730469,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 104,
+            "clientWidth": 104
+          },
+          {
+            "label": "Create expense · −9999999.99 €",
+            "x": 20,
+            "y": 706.176025390625,
+            "w": 280,
+            "h": 65,
+            "right": 300,
+            "bottom": 771.176025390625,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "wheelSteps": 1,
+      "afterWheel": {
+        "dialog": {
+          "x": 0,
+          "y": 69.05463409423828,
+          "w": 320,
+          "h": 522.546875,
+          "right": 320,
+          "bottom": 591.6015090942383
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1568,
+        "clientHeight": 523,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 268,
+            "y": 77.05463409423828,
+            "w": 44,
+            "h": 44,
+            "right": 312,
+            "bottom": 121.05463409423828,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC Põhja-Eesti Raamatupidamis- ja Maksunõustamisteenuste Keskus ning Partnerid Rahvusvaheline Esindus TallinnasEE · #1",
+            "x": 20,
+            "y": -930.9453735351562,
+            "w": 280,
+            "h": 147,
+            "right": 300,
+            "bottom": -783.9453735351562,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "SYNTHETIC Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜEE · #2",
+            "x": 20,
+            "y": -783.9453735351562,
+            "w": 280,
+            "h": 777,
+            "right": 300,
+            "bottom": -6.94537353515625,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "SYNTHETIC-UnbrokenSupplierRegistrationIdentifier0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZEE · #3",
+            "x": 20,
+            "y": -6.945365905761719,
+            "w": 280,
+            "h": 209,
+            "right": 300,
+            "bottom": 202.05463409423828,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "New supplier…",
+            "x": 20,
+            "y": 208.05462646484375,
+            "w": 104,
+            "h": 19.5,
+            "right": 124,
+            "bottom": 227.55462646484375,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 104,
+            "clientWidth": 104
+          },
+          {
+            "label": "Create expense · −9999999.99 €",
+            "x": 20,
+            "y": 483.05462646484375,
+            "w": 280,
+            "h": 65,
+            "right": 300,
+            "bottom": 548.0546264648438,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 413.60296630859375,
+          "bottom": 460.10296630859375,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 411.0456848144531,
+          "bottom": 457.5456848144531,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 407.09405517578125,
+          "bottom": 453.59405517578125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Create expense · −9999999.99 €",
+          "role": "BUTTON",
+          "top": 462.8610534667969,
+          "bottom": 527.861083984375,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "beforeBusy": {
+        "label": "Create expense · −9999999.99 €",
+        "x": 20,
+        "y": 461.8580322265625,
+        "w": 280,
+        "h": 65,
+        "right": 300,
+        "bottom": 526.8580322265625,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 280,
+        "clientWidth": 280
+      },
+      "busy": {
+        "label": "Create expense · −9999999.99 €",
+        "x": 20,
+        "y": 459.453125,
+        "w": 280,
+        "h": 65,
+        "right": 300,
+        "bottom": 524.453125,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 280,
+        "clientWidth": 280
+      },
+      "pendingStatus": [
+        "Saving… the form is locked until the server answers."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "create-invoice",
+      "width": 320,
+      "height": 568,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/sales-invoices",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "POST",
+          "path": "/api/sales-invoices",
+          "forwarded": false
+        }
+      ],
+      "initial": {
+        "dialog": {
+          "x": 0,
+          "y": 292.1014404296875,
+          "w": 320,
+          "h": 522.546875,
+          "right": 320,
+          "bottom": 814.6483154296875
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1568,
+        "clientHeight": 523,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [
+          {
+            "tag": "INPUT",
+            "text": "",
+            "clientWidth": 278,
+            "scrollWidth": 762
+          }
+        ],
+        "buttons": [
+          {
+            "label": "",
+            "x": 268,
+            "y": 300.1014404296875,
+            "w": 44,
+            "h": 44,
+            "right": 312,
+            "bottom": 344.1014404296875,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 20,
+            "y": 480.6014404296875,
+            "w": 280,
+            "h": 41,
+            "right": 300,
+            "bottom": 521.6014404296875,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "New customer…",
+            "x": 20,
+            "y": 527.6014404296875,
+            "w": 104,
+            "h": 19.5,
+            "right": 124,
+            "bottom": 547.1014404296875,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 104,
+            "clientWidth": 104
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 20,
+            "y": 904.6014404296875,
+            "w": 280,
+            "h": 65,
+            "right": 300,
+            "bottom": 969.6014404296875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "wheelSteps": 1,
+      "afterWheel": {
+        "dialog": {
+          "x": 0,
+          "y": 69.05039978027344,
+          "w": 320,
+          "h": 522.546875,
+          "right": 320,
+          "bottom": 591.5972747802734
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1568,
+        "clientHeight": 523,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [
+          {
+            "tag": "INPUT",
+            "text": "",
+            "clientWidth": 278,
+            "scrollWidth": 762
+          }
+        ],
+        "buttons": [
+          {
+            "label": "",
+            "x": 268,
+            "y": 77.05039978027344,
+            "w": 44,
+            "h": 44,
+            "right": 312,
+            "bottom": 121.05039978027344,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 20,
+            "y": 58.55039978027344,
+            "w": 280,
+            "h": 41,
+            "right": 300,
+            "bottom": 99.55039978027344,
+            "inView": true,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "New customer…",
+            "x": 20,
+            "y": 105.55039978027344,
+            "w": 104,
+            "h": 19.5,
+            "right": 124,
+            "bottom": 125.05039978027344,
+            "inView": true,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 104,
+            "clientWidth": 104
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 20,
+            "y": 482.5504150390625,
+            "w": 280,
+            "h": 65,
+            "right": 300,
+            "bottom": 547.5504150390625,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 314.1373291015625,
+          "bottom": 360.6373291015625,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 308.5435791015625,
+          "bottom": 355.0435791015625,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 306.39398193359375,
+          "bottom": 352.89398193359375,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 385.09417724609375,
+          "bottom": 431.59417724609375,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 382.85699462890625,
+          "bottom": 429.35699462890625,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 382.0590515136719,
+          "bottom": 428.5590515136719,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 380.9902648925781,
+          "bottom": 427.4902648925781,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Create invoice · +9999999.99 €",
+          "role": "BUTTON",
+          "top": 459.0086364746094,
+          "bottom": 524.0086669921875,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "beforeBusy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 20,
+        "y": 458.953125,
+        "w": 280,
+        "h": 65,
+        "right": 300,
+        "bottom": 523.953125,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 280,
+        "clientWidth": 280
+      },
+      "busy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 20,
+        "y": 458.953125,
+        "w": 280,
+        "h": 65,
+        "right": 300,
+        "bottom": 523.953125,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 280,
+        "clientWidth": 280
+      },
+      "pendingStatus": [
+        "Saving… the form is locked until the server answers."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": false
+    },
+    {
+      "name": "expense-facts",
+      "width": 320,
+      "height": 568,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [],
+      "interceptedWrites": [],
+      "geometry": {
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 1172.5,
+          "right": 320,
+          "bottom": 1172.5
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1173,
+        "clientHeight": 1173,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "📎Attach receipt…No source document yet — upload it or pick one from Documents›",
+            "x": 14,
+            "y": 685.5,
+            "w": 292,
+            "h": 102,
+            "right": 306,
+            "bottom": 787.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 292,
+            "clientWidth": 292
+          },
+          {
+            "label": "Submit for posting",
+            "x": 20,
+            "y": 910,
+            "w": 280,
+            "h": 42.5,
+            "right": 300,
+            "bottom": 952.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "Edit draft…",
+            "x": 20,
+            "y": 960.5,
+            "w": 280,
+            "h": 42.5,
+            "right": 300,
+            "bottom": 1003,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "Delete draft…",
+            "x": 20,
+            "y": 1011,
+            "w": 280,
+            "h": 42.5,
+            "right": 300,
+            "bottom": 1053.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "containsFullIdentifier": true,
+      "geometryNoHorizontalOverflow": true,
+      "ok": true
+    },
+    {
+      "name": "expense-confirm",
+      "width": 320,
+      "height": 568,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/expenses/297",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/expenses/297",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 7,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "initial": {
+        "dialog": {
+          "x": 24,
+          "y": 16,
+          "w": 272,
+          "h": 536,
+          "right": 296,
+          "bottom": 552
+        },
+        "scrollTop": 0,
+        "scrollHeight": 681,
+        "clientHeight": 536,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 537,
+            "w": 232,
+            "h": 65,
+            "right": 276,
+            "bottom": 602,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          },
+          {
+            "label": "Delete",
+            "x": 44,
+            "y": 612,
+            "w": 232,
+            "h": 65,
+            "right": 276,
+            "bottom": 677,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          }
+        ]
+      },
+      "wheelSteps": 1,
+      "afterWheel": {
+        "dialog": {
+          "x": 24,
+          "y": 16,
+          "w": 272,
+          "h": 536,
+          "right": 296,
+          "bottom": 552
+        },
+        "scrollTop": 145,
+        "scrollHeight": 681,
+        "clientHeight": 536,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 392,
+            "w": 232,
+            "h": 65,
+            "right": 276,
+            "bottom": 457,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          },
+          {
+            "label": "Delete",
+            "x": 44,
+            "y": 467,
+            "w": 232,
+            "h": 65,
+            "right": 276,
+            "bottom": 532,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete",
+          "role": "BUTTON",
+          "top": 467,
+          "bottom": 532,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 392,
+          "bottom": 457,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete",
+          "role": "BUTTON",
+          "top": 467,
+          "bottom": 532,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 392,
+          "bottom": 457,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete",
+        "x": 44,
+        "y": 467,
+        "w": 232,
+        "h": 65,
+        "right": 276,
+        "bottom": 532,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 232,
+        "clientWidth": 232
+      },
+      "busy": {
+        "label": "Delete",
+        "x": 44,
+        "y": 467,
+        "w": 232,
+        "h": 65,
+        "right": 276,
+        "bottom": 532,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 232,
+        "clientWidth": 232
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "entity-long",
+      "width": 320,
+      "height": 568,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/entities/1",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/entities/1",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 7,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "initial": {
+        "dialog": {
+          "x": 24,
+          "y": 16,
+          "w": 272,
+          "h": 536,
+          "right": 296,
+          "bottom": 552
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1242,
+        "clientHeight": 536,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 1053,
+            "w": 232,
+            "h": 65,
+            "right": 276,
+            "bottom": 1118,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          },
+          {
+            "label": "Delete entity",
+            "x": 44,
+            "y": 1128,
+            "w": 232,
+            "h": 110,
+            "right": 276,
+            "bottom": 1238,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          }
+        ]
+      },
+      "wheelSteps": 3,
+      "afterWheel": {
+        "dialog": {
+          "x": 24,
+          "y": 16,
+          "w": 272,
+          "h": 536,
+          "right": 296,
+          "bottom": 552
+        },
+        "scrollTop": 706,
+        "scrollHeight": 1242,
+        "clientHeight": 536,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 347,
+            "w": 232,
+            "h": 65,
+            "right": 276,
+            "bottom": 412,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          },
+          {
+            "label": "Delete entity",
+            "x": 44,
+            "y": 422,
+            "w": 232,
+            "h": 110,
+            "right": 276,
+            "bottom": 532,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 422,
+          "bottom": 532,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 347,
+          "bottom": 412,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 422,
+          "bottom": 532,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 347,
+          "bottom": 412,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete entity",
+        "x": 44,
+        "y": 422,
+        "w": 232,
+        "h": 110,
+        "right": 276,
+        "bottom": 532,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 232,
+        "clientWidth": 232
+      },
+      "busy": {
+        "label": "Delete entity",
+        "x": 44,
+        "y": 422,
+        "w": 232,
+        "h": 110,
+        "right": 276,
+        "bottom": 532,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 232,
+        "clientWidth": 232
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "entity-stress",
+      "width": 320,
+      "height": 568,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/entities/2",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/entities/2",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 7,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "initial": {
+        "dialog": {
+          "x": 24,
+          "y": 16,
+          "w": 272,
+          "h": 536,
+          "right": 296,
+          "bottom": 552
+        },
+        "scrollTop": 0,
+        "scrollHeight": 3389,
+        "clientHeight": 536,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 3199.5,
+            "w": 232,
+            "h": 65,
+            "right": 276,
+            "bottom": 3264.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          },
+          {
+            "label": "Delete entity",
+            "x": 44,
+            "y": 3274.5,
+            "w": 232,
+            "h": 110,
+            "right": 276,
+            "bottom": 3384.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          }
+        ]
+      },
+      "wheelSteps": 10,
+      "afterWheel": {
+        "dialog": {
+          "x": 24,
+          "y": 16,
+          "w": 272,
+          "h": 536,
+          "right": 296,
+          "bottom": 552
+        },
+        "scrollTop": 2853,
+        "scrollHeight": 3389,
+        "clientHeight": 536,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 346.5,
+            "w": 232,
+            "h": 65,
+            "right": 276,
+            "bottom": 411.5,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          },
+          {
+            "label": "Delete entity",
+            "x": 44,
+            "y": 421.5,
+            "w": 232,
+            "h": 110,
+            "right": 276,
+            "bottom": 531.5,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 421.5,
+          "bottom": 531.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 346.5,
+          "bottom": 411.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 421.5,
+          "bottom": 531.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 346.5,
+          "bottom": 411.5,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete entity",
+        "x": 44,
+        "y": 421.5,
+        "w": 232,
+        "h": 110,
+        "right": 276,
+        "bottom": 531.5,
+        "inView": true,
+        "hit": false,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 232,
+        "clientWidth": 232
+      },
+      "busy": {
+        "label": "Delete entity",
+        "x": 44,
+        "y": 421.5,
+        "w": 232,
+        "h": 110,
+        "right": 276,
+        "bottom": 531.5,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 232,
+        "clientWidth": 232
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "entity-unbroken",
+      "width": 320,
+      "height": 568,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/entities/3",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/entities/3",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 7,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "initial": {
+        "dialog": {
+          "x": 24,
+          "y": 16,
+          "w": 272,
+          "h": 536,
+          "right": 296,
+          "bottom": 552
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1364,
+        "clientHeight": 536,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 1174.5,
+            "w": 232,
+            "h": 65,
+            "right": 276,
+            "bottom": 1239.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          },
+          {
+            "label": "Delete entity",
+            "x": 44,
+            "y": 1249.5,
+            "w": 232,
+            "h": 110,
+            "right": 276,
+            "bottom": 1359.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          }
+        ]
+      },
+      "wheelSteps": 3,
+      "afterWheel": {
+        "dialog": {
+          "x": 24,
+          "y": 16,
+          "w": 272,
+          "h": 536,
+          "right": 296,
+          "bottom": 552
+        },
+        "scrollTop": 828,
+        "scrollHeight": 1364,
+        "clientHeight": 536,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 44,
+            "y": 346.5,
+            "w": 232,
+            "h": 65,
+            "right": 276,
+            "bottom": 411.5,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          },
+          {
+            "label": "Delete entity",
+            "x": 44,
+            "y": 421.5,
+            "w": 232,
+            "h": 110,
+            "right": 276,
+            "bottom": 531.5,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 232,
+            "clientWidth": 232
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 421.5,
+          "bottom": 531.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 346.5,
+          "bottom": 411.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 421.5,
+          "bottom": 531.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 346.5,
+          "bottom": 411.5,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete entity",
+        "x": 44,
+        "y": 421.5,
+        "w": 232,
+        "h": 110,
+        "right": 276,
+        "bottom": 531.5,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 232,
+        "clientWidth": 232
+      },
+      "busy": {
+        "label": "Delete entity",
+        "x": 44,
+        "y": 421.5,
+        "w": 232,
+        "h": 110,
+        "right": 276,
+        "bottom": 531.5,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 232,
+        "clientWidth": 232
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "create-expense",
+      "width": 320,
+      "height": 568,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/expenses",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "POST",
+          "path": "/api/expenses",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 73,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "initial": {
+        "dialog": {
+          "x": 0,
+          "y": 177.88446044921875,
+          "w": 320,
+          "h": 522.546875,
+          "right": 320,
+          "bottom": 700.4313354492188
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1568,
+        "clientHeight": 523,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 268,
+            "y": 185.88446044921875,
+            "w": 44,
+            "h": 44,
+            "right": 312,
+            "bottom": 229.88446044921875,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC Põhja-Eesti Raamatupidamis- ja Maksunõustamisteenuste Keskus ning Partnerid Rahvusvaheline Esindus TallinnasEE · #1",
+            "x": 20,
+            "y": -4814.11572265625,
+            "w": 280,
+            "h": 777.000244140625,
+            "right": 300,
+            "bottom": -4037.115478515625,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "SYNTHETIC Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜEE · #2",
+            "x": 20,
+            "y": -4037.115478515625,
+            "w": 280,
+            "h": 4221,
+            "right": 300,
+            "bottom": 183.884521484375,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "SYNTHETIC-UnbrokenSupplierRegistrationIdentifier0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZEE · #3",
+            "x": 20,
+            "y": 183.88446044921875,
+            "w": 280,
+            "h": 1070,
+            "right": 300,
+            "bottom": 1253.8844604492188,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "New supplier…",
+            "x": 20,
+            "y": 1260.884521484375,
+            "w": 208,
+            "h": 39,
+            "right": 228,
+            "bottom": 1299.884521484375,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 208,
+            "clientWidth": 208
+          },
+          {
+            "label": "Create expense · −9999999.99 €",
+            "x": 20,
+            "y": 1720.884521484375,
+            "w": 280,
+            "h": 155,
+            "right": 300,
+            "bottom": 1875.884521484375,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "wheelSteps": 4,
+      "afterWheel": {
+        "dialog": {
+          "x": 0,
+          "y": 45.453125,
+          "w": 320,
+          "h": 522.546875,
+          "right": 320,
+          "bottom": 568
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1568,
+        "clientHeight": 523,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 268,
+            "y": 53.453125,
+            "w": 44,
+            "h": 44,
+            "right": 312,
+            "bottom": 97.453125,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC Põhja-Eesti Raamatupidamis- ja Maksunõustamisteenuste Keskus ning Partnerid Rahvusvaheline Esindus TallinnasEE · #1",
+            "x": 20,
+            "y": -6146.546875,
+            "w": 280,
+            "h": 777,
+            "right": 300,
+            "bottom": -5369.546875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "SYNTHETIC Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜEE · #2",
+            "x": 20,
+            "y": -5369.546875,
+            "w": 280,
+            "h": 4221,
+            "right": 300,
+            "bottom": -1148.546875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "SYNTHETIC-UnbrokenSupplierRegistrationIdentifier0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZEE · #3",
+            "x": 20,
+            "y": -1148.546875,
+            "w": 280,
+            "h": 1070,
+            "right": 300,
+            "bottom": -78.546875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "New supplier…",
+            "x": 20,
+            "y": -71.546875,
+            "w": 208,
+            "h": 39,
+            "right": 228,
+            "bottom": -32.546875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 208,
+            "clientWidth": 208
+          },
+          {
+            "label": "Create expense · −9999999.99 €",
+            "x": 20,
+            "y": 388.453125,
+            "w": 280,
+            "h": 155,
+            "right": 300,
+            "bottom": 543.453125,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 307.453125,
+          "bottom": 376.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 307.453125,
+          "bottom": 376.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 307.453125,
+          "bottom": 376.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Create expense · −9999999.99 €",
+          "role": "BUTTON",
+          "top": 388.453125,
+          "bottom": 543.453125,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "beforeBusy": {
+        "label": "Create expense · −9999999.99 €",
+        "x": 20,
+        "y": 388.453125,
+        "w": 280,
+        "h": 155,
+        "right": 300,
+        "bottom": 543.453125,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 280,
+        "clientWidth": 280
+      },
+      "busy": {
+        "label": "Create expense · −9999999.99 €",
+        "x": 20,
+        "y": 388.453125,
+        "w": 280,
+        "h": 155,
+        "right": 300,
+        "bottom": 543.453125,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 280,
+        "clientWidth": 280
+      },
+      "pendingStatus": [
+        "Saving… the form is locked until the server answers."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "create-invoice",
+      "width": 320,
+      "height": 568,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/sales-invoices",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "POST",
+          "path": "/api/sales-invoices",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 54,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "initial": {
+        "dialog": {
+          "x": 0,
+          "y": 225.22314453125,
+          "w": 320,
+          "h": 522.546875,
+          "right": 320,
+          "bottom": 747.77001953125
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1568,
+        "clientHeight": 523,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [
+          {
+            "tag": "INPUT",
+            "text": "",
+            "clientWidth": 278,
+            "scrollWidth": 1500
+          }
+        ],
+        "buttons": [
+          {
+            "label": "",
+            "x": 268,
+            "y": 233.22314453125,
+            "w": 44,
+            "h": 44,
+            "right": 312,
+            "bottom": 277.22314453125,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 20,
+            "y": 611.22314453125,
+            "w": 280,
+            "h": 146,
+            "right": 300,
+            "bottom": 757.22314453125,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "New customer…",
+            "x": 20,
+            "y": 764.22314453125,
+            "w": 208,
+            "h": 39,
+            "right": 228,
+            "bottom": 803.22314453125,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 208,
+            "clientWidth": 208
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 20,
+            "y": 1384.22314453125,
+            "w": 280,
+            "h": 155,
+            "right": 300,
+            "bottom": 1539.22314453125,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "wheelSteps": 3,
+      "afterWheel": {
+        "dialog": {
+          "x": 0,
+          "y": 45.50859451293945,
+          "w": 320,
+          "h": 522.546875,
+          "right": 320,
+          "bottom": 568.0554695129395
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1568,
+        "clientHeight": 523,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [
+          {
+            "tag": "INPUT",
+            "text": "",
+            "clientWidth": 278,
+            "scrollWidth": 1500
+          }
+        ],
+        "buttons": [
+          {
+            "label": "",
+            "x": 268,
+            "y": 53.50859451293945,
+            "w": 44,
+            "h": 43.999996185302734,
+            "right": 312,
+            "bottom": 97.50859069824219,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 20,
+            "y": -403.49139404296875,
+            "w": 280,
+            "h": 146,
+            "right": 300,
+            "bottom": -257.49139404296875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "New customer…",
+            "x": 20,
+            "y": -250.4914093017578,
+            "w": 208,
+            "h": 39,
+            "right": 228,
+            "bottom": -211.4914093017578,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 208,
+            "clientWidth": 208
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 20,
+            "y": 369.50860595703125,
+            "w": 280,
+            "h": 155,
+            "right": 300,
+            "bottom": 524.5086059570312,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 333.453125,
+          "bottom": 402.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 333.453125,
+          "bottom": 402.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 333.453125,
+          "bottom": 402.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 457.453125,
+          "bottom": 526.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 457.453125,
+          "bottom": 526.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 457.453125,
+          "bottom": 526.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 457.453125,
+          "bottom": 526.453125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Create invoice · +9999999.99 €",
+          "role": "BUTTON",
+          "top": 369.453125,
+          "bottom": 524.453125,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "beforeBusy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 20,
+        "y": 369.453125,
+        "w": 280,
+        "h": 155,
+        "right": 300,
+        "bottom": 524.453125,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 280,
+        "clientWidth": 280
+      },
+      "busy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 20,
+        "y": 369.453125,
+        "w": 280,
+        "h": 155,
+        "right": 300,
+        "bottom": 524.453125,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 280,
+        "clientWidth": 280
+      },
+      "pendingStatus": [
+        "Saving… the form is locked until the server answers."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": false
+    },
+    {
+      "name": "expense-facts",
+      "width": 320,
+      "height": 568,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [],
+      "interceptedWrites": [],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 56,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "geometry": {
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 2970,
+          "right": 320,
+          "bottom": 2970
+        },
+        "scrollTop": 0,
+        "scrollHeight": 2970,
+        "clientHeight": 2970,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [
+          {
+            "tag": "MAIN",
+            "text": "‹ BackExpense−9999999.99 USDSYNTHETIC Põhja-Eesti Raamatupidamis- ja Maksunõustamisteenuste Keskus n",
+            "clientWidth": 320,
+            "scrollWidth": 416
+          },
+          {
+            "tag": "DIV",
+            "text": "‹ BackExpense−9999999.99 USDSYNTHETIC Põhja-Eesti Raamatupidamis- ja Maksunõustamisteenuste Keskus n",
+            "clientWidth": 320,
+            "scrollWidth": 416
+          },
+          {
+            "tag": "DIV",
+            "text": "−9999999.99 USDSYNTHETIC Põhja-Eesti Raamatupidamis- ja Maksunõustamisteenuste Keskus ning Partnerid",
+            "clientWidth": 320,
+            "scrollWidth": 416
+          },
+          {
+            "tag": "P",
+            "text": "SYNTHETIC Põhja-Eesti Raamatupidamis- ja Maksunõustamisteenuste Keskus ning Partnerid Rahvusvaheline",
+            "clientWidth": 280,
+            "scrollWidth": 374
+          }
+        ],
+        "buttons": [
+          {
+            "label": "📎Attach receipt…No source document yet — upload it or pick one from Documents›",
+            "x": 14,
+            "y": 2080,
+            "w": 292,
+            "h": 336,
+            "right": 306,
+            "bottom": 2416,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 292,
+            "clientWidth": 292
+          },
+          {
+            "label": "Submit for posting",
+            "x": 20,
+            "y": 2595,
+            "w": 280,
+            "h": 110,
+            "right": 300,
+            "bottom": 2705,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "Edit draft…",
+            "x": 20,
+            "y": 2713,
+            "w": 280,
+            "h": 65,
+            "right": 300,
+            "bottom": 2778,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          },
+          {
+            "label": "Delete draft…",
+            "x": 20,
+            "y": 2786,
+            "w": 280,
+            "h": 65,
+            "right": 300,
+            "bottom": 2851,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 280,
+            "clientWidth": 280
+          }
+        ]
+      },
+      "containsFullIdentifier": true,
+      "geometryNoHorizontalOverflow": false,
+      "ok": false
+    },
+    {
+      "name": "expense-confirm",
+      "width": 844,
+      "height": 390,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/expenses/297",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/expenses/297",
+          "forwarded": false
+        }
+      ],
+      "initial": {
+        "dialog": {
+          "x": 230,
+          "y": 98.625,
+          "w": 384,
+          "h": 192.75,
+          "right": 614,
+          "bottom": 291.375
+        },
+        "scrollTop": 0,
+        "scrollHeight": 193,
+        "clientHeight": 193,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 228.875,
+            "w": 167,
+            "h": 42.5,
+            "right": 417,
+            "bottom": 271.375,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          },
+          {
+            "label": "Delete",
+            "x": 427,
+            "y": 228.875,
+            "w": 167,
+            "h": 42.5,
+            "right": 594,
+            "bottom": 271.375,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          }
+        ]
+      },
+      "wheelSteps": 0,
+      "afterWheel": {
+        "dialog": {
+          "x": 230,
+          "y": 98.625,
+          "w": 384,
+          "h": 192.75,
+          "right": 614,
+          "bottom": 291.375
+        },
+        "scrollTop": 0,
+        "scrollHeight": 193,
+        "clientHeight": 193,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 228.875,
+            "w": 167,
+            "h": 42.5,
+            "right": 417,
+            "bottom": 271.375,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          },
+          {
+            "label": "Delete",
+            "x": 427,
+            "y": 228.875,
+            "w": 167,
+            "h": 42.5,
+            "right": 594,
+            "bottom": 271.375,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete",
+          "role": "BUTTON",
+          "top": 228.875,
+          "bottom": 271.375,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 228.875,
+          "bottom": 271.375,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete",
+          "role": "BUTTON",
+          "top": 228.875,
+          "bottom": 271.375,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 228.875,
+          "bottom": 271.375,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete",
+        "x": 427,
+        "y": 228.875,
+        "w": 167,
+        "h": 42.5,
+        "right": 594,
+        "bottom": 271.375,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 167,
+        "clientWidth": 167
+      },
+      "busy": {
+        "label": "Delete",
+        "x": 427,
+        "y": 228.875,
+        "w": 167,
+        "h": 42.5,
+        "right": 594,
+        "bottom": 271.375,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 167,
+        "clientWidth": 167
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "entity-long",
+      "width": 844,
+      "height": 390,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/entities/1",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/entities/1",
+          "forwarded": false
+        }
+      ],
+      "initial": {
+        "dialog": {
+          "x": 230,
+          "y": 58.125,
+          "w": 384,
+          "h": 273.75,
+          "right": 614,
+          "bottom": 331.875
+        },
+        "scrollTop": 0,
+        "scrollHeight": 274,
+        "clientHeight": 274,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 269.375,
+            "w": 167,
+            "h": 42.5,
+            "right": 417,
+            "bottom": 311.875,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          },
+          {
+            "label": "Delete entity",
+            "x": 427,
+            "y": 269.375,
+            "w": 167,
+            "h": 42.5,
+            "right": 594,
+            "bottom": 311.875,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          }
+        ]
+      },
+      "wheelSteps": 0,
+      "afterWheel": {
+        "dialog": {
+          "x": 230,
+          "y": 58.125,
+          "w": 384,
+          "h": 273.75,
+          "right": 614,
+          "bottom": 331.875
+        },
+        "scrollTop": 0,
+        "scrollHeight": 274,
+        "clientHeight": 274,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 269.375,
+            "w": 167,
+            "h": 42.5,
+            "right": 417,
+            "bottom": 311.875,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          },
+          {
+            "label": "Delete entity",
+            "x": 427,
+            "y": 269.375,
+            "w": 167,
+            "h": 42.5,
+            "right": 594,
+            "bottom": 311.875,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 269.375,
+          "bottom": 311.875,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 269.375,
+          "bottom": 311.875,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 269.375,
+          "bottom": 311.875,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 269.375,
+          "bottom": 311.875,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete entity",
+        "x": 427,
+        "y": 269.375,
+        "w": 167,
+        "h": 42.5,
+        "right": 594,
+        "bottom": 311.875,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 167,
+        "clientWidth": 167
+      },
+      "busy": {
+        "label": "Delete entity",
+        "x": 427,
+        "y": 269.375,
+        "w": 167,
+        "h": 42.5,
+        "right": 594,
+        "bottom": 311.875,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 167,
+        "clientWidth": 167
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "entity-stress",
+      "width": 844,
+      "height": 390,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/entities/2",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/entities/2",
+          "forwarded": false
+        }
+      ],
+      "initial": {
+        "dialog": {
+          "x": 230,
+          "y": 16,
+          "w": 384,
+          "h": 358,
+          "right": 614,
+          "bottom": 374
+        },
+        "scrollTop": 0,
+        "scrollHeight": 537,
+        "clientHeight": 358,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 490.5,
+            "w": 167,
+            "h": 42.5,
+            "right": 417,
+            "bottom": 533,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          },
+          {
+            "label": "Delete entity",
+            "x": 427,
+            "y": 490.5,
+            "w": 167,
+            "h": 42.5,
+            "right": 594,
+            "bottom": 533,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          }
+        ]
+      },
+      "wheelSteps": 1,
+      "afterWheel": {
+        "dialog": {
+          "x": 230,
+          "y": 16,
+          "w": 384,
+          "h": 358,
+          "right": 614,
+          "bottom": 374
+        },
+        "scrollTop": 179,
+        "scrollHeight": 537,
+        "clientHeight": 358,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 311.5,
+            "w": 167,
+            "h": 42.5,
+            "right": 417,
+            "bottom": 354,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          },
+          {
+            "label": "Delete entity",
+            "x": 427,
+            "y": 311.5,
+            "w": 167,
+            "h": 42.5,
+            "right": 594,
+            "bottom": 354,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 311.5,
+          "bottom": 354,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 311.5,
+          "bottom": 354,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 311.5,
+          "bottom": 354,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 311.5,
+          "bottom": 354,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete entity",
+        "x": 427,
+        "y": 311.5,
+        "w": 167,
+        "h": 42.5,
+        "right": 594,
+        "bottom": 354,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 167,
+        "clientWidth": 167
+      },
+      "busy": {
+        "label": "Delete entity",
+        "x": 427,
+        "y": 311.5,
+        "w": 167,
+        "h": 42.5,
+        "right": 594,
+        "bottom": 354,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 167,
+        "clientWidth": 167
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "entity-unbroken",
+      "width": 844,
+      "height": 390,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/entities/3",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/entities/3",
+          "forwarded": false
+        }
+      ],
+      "initial": {
+        "dialog": {
+          "x": 230,
+          "y": 37.875,
+          "w": 384,
+          "h": 314.25,
+          "right": 614,
+          "bottom": 352.125
+        },
+        "scrollTop": 0,
+        "scrollHeight": 314,
+        "clientHeight": 314,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 289.625,
+            "w": 167,
+            "h": 42.5,
+            "right": 417,
+            "bottom": 332.125,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          },
+          {
+            "label": "Delete entity",
+            "x": 427,
+            "y": 289.625,
+            "w": 167,
+            "h": 42.5,
+            "right": 594,
+            "bottom": 332.125,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          }
+        ]
+      },
+      "wheelSteps": 0,
+      "afterWheel": {
+        "dialog": {
+          "x": 230,
+          "y": 37.875,
+          "w": 384,
+          "h": 314.25,
+          "right": 614,
+          "bottom": 352.125
+        },
+        "scrollTop": 0,
+        "scrollHeight": 314,
+        "clientHeight": 314,
+        "overflowY": "auto",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 289.625,
+            "w": 167,
+            "h": 42.5,
+            "right": 417,
+            "bottom": 332.125,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          },
+          {
+            "label": "Delete entity",
+            "x": 427,
+            "y": 289.625,
+            "w": 167,
+            "h": 42.5,
+            "right": 594,
+            "bottom": 332.125,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 167,
+            "clientWidth": 167
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 289.625,
+          "bottom": 332.125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 289.625,
+          "bottom": 332.125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 289.625,
+          "bottom": 332.125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 289.625,
+          "bottom": 332.125,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete entity",
+        "x": 427,
+        "y": 289.625,
+        "w": 167,
+        "h": 42.5,
+        "right": 594,
+        "bottom": 332.125,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 167,
+        "clientWidth": 167
+      },
+      "busy": {
+        "label": "Delete entity",
+        "x": 427,
+        "y": 289.625,
+        "w": 167,
+        "h": 42.5,
+        "right": 594,
+        "bottom": 332.125,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 167,
+        "clientWidth": 167
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "create-expense",
+      "width": 844,
+      "height": 390,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/expenses",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "POST",
+          "path": "/api/expenses",
+          "forwarded": false
+        }
+      ],
+      "initial": {
+        "dialog": {
+          "x": 134,
+          "y": 154.59832763671875,
+          "w": 576,
+          "h": 358.796875,
+          "right": 710,
+          "bottom": 513.3952026367188
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1076,
+        "clientHeight": 359,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 658,
+            "y": 162.59832763671875,
+            "w": 44,
+            "h": 44,
+            "right": 702,
+            "bottom": 206.59832763671875,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC Põhja-Eesti Raamatupidamis- ja Maksunõustamisteenuste Keskus ning Partnerid Rahvusvaheline Esindus TallinnasEE · #1",
+            "x": 154,
+            "y": -357.40167236328125,
+            "w": 536,
+            "h": 84,
+            "right": 690,
+            "bottom": -273.40167236328125,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "SYNTHETIC Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜEE · #2",
+            "x": 154,
+            "y": -273.40167236328125,
+            "w": 536,
+            "h": 294,
+            "right": 690,
+            "bottom": 20.59832763671875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "SYNTHETIC-UnbrokenSupplierRegistrationIdentifier0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZEE · #3",
+            "x": 154,
+            "y": 20.59832763671875,
+            "w": 536,
+            "h": 125,
+            "right": 690,
+            "bottom": 145.59832763671875,
+            "inView": true,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "New supplier…",
+            "x": 154,
+            "y": 151.59832763671875,
+            "w": 104,
+            "h": 19.5,
+            "right": 258,
+            "bottom": 171.09832763671875,
+            "inView": true,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 104,
+            "clientWidth": 104
+          },
+          {
+            "label": "Create expense · −9999999.99 €",
+            "x": 154,
+            "y": 426.59832763671875,
+            "w": 536,
+            "h": 42.5,
+            "right": 690,
+            "bottom": 469.09832763671875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          }
+        ]
+      },
+      "wheelSteps": 1,
+      "afterWheel": {
+        "dialog": {
+          "x": 134,
+          "y": 50.947776794433594,
+          "w": 576,
+          "h": 358.796875,
+          "right": 710,
+          "bottom": 409.7446517944336
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1076,
+        "clientHeight": 359,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 658,
+            "y": 58.947776794433594,
+            "w": 44,
+            "h": 44,
+            "right": 702,
+            "bottom": 102.9477767944336,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC Põhja-Eesti Raamatupidamis- ja Maksunõustamisteenuste Keskus ning Partnerid Rahvusvaheline Esindus TallinnasEE · #1",
+            "x": 154,
+            "y": -461.0522155761719,
+            "w": 536,
+            "h": 84,
+            "right": 690,
+            "bottom": -377.0522155761719,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "SYNTHETIC Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜEE · #2",
+            "x": 154,
+            "y": -377.0522155761719,
+            "w": 536,
+            "h": 294,
+            "right": 690,
+            "bottom": -83.05221557617188,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "SYNTHETIC-UnbrokenSupplierRegistrationIdentifier0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZEE · #3",
+            "x": 154,
+            "y": -83.0522232055664,
+            "w": 536,
+            "h": 125,
+            "right": 690,
+            "bottom": 41.947776794433594,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "New supplier…",
+            "x": 154,
+            "y": 47.947776794433594,
+            "w": 104,
+            "h": 19.5,
+            "right": 258,
+            "bottom": 67.4477767944336,
+            "inView": true,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 104,
+            "clientWidth": 104
+          },
+          {
+            "label": "Create expense · −9999999.99 €",
+            "x": 154,
+            "y": 322.9477844238281,
+            "w": 536,
+            "h": 42.5,
+            "right": 690,
+            "bottom": 365.4477844238281,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 257.9514465332031,
+          "bottom": 304.4514465332031,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 255.47225952148438,
+          "bottom": 301.9722595214844,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 251.63145446777344,
+          "bottom": 298.1314697265625,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Create expense · −9999999.99 €",
+          "role": "BUTTON",
+          "top": 308.6554870605469,
+          "bottom": 351.1554870605469,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "beforeBusy": {
+        "label": "Create expense · −9999999.99 €",
+        "x": 154,
+        "y": 307.4192810058594,
+        "w": 536,
+        "h": 42.5,
+        "right": 690,
+        "bottom": 349.9192810058594,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 536,
+        "clientWidth": 536
+      },
+      "busy": {
+        "label": "Create expense · −9999999.99 €",
+        "x": 154,
+        "y": 303.203125,
+        "w": 536,
+        "h": 42.5,
+        "right": 690,
+        "bottom": 345.703125,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 536,
+        "clientWidth": 536
+      },
+      "pendingStatus": [
+        "Saving… the form is locked until the server answers."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "create-invoice",
+      "width": 844,
+      "height": 390,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/sales-invoices",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "POST",
+          "path": "/api/sales-invoices",
+          "forwarded": false
+        }
+      ],
+      "initial": {
+        "dialog": {
+          "x": 134,
+          "y": 249.8574676513672,
+          "w": 576,
+          "h": 358.796875,
+          "right": 710,
+          "bottom": 608.6543426513672
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1076,
+        "clientHeight": 359,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [
+          {
+            "tag": "INPUT",
+            "text": "",
+            "clientWidth": 534,
+            "scrollWidth": 762
+          }
+        ],
+        "buttons": [
+          {
+            "label": "",
+            "x": 658,
+            "y": 257.85748291015625,
+            "w": 44,
+            "h": 44,
+            "right": 702,
+            "bottom": 301.85748291015625,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 154,
+            "y": 161.3574676513672,
+            "w": 536,
+            "h": 41,
+            "right": 690,
+            "bottom": 202.3574676513672,
+            "inView": true,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "New customer…",
+            "x": 154,
+            "y": 208.3574676513672,
+            "w": 104,
+            "h": 19.5,
+            "right": 258,
+            "bottom": 227.8574676513672,
+            "inView": true,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 104,
+            "clientWidth": 104
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 154,
+            "y": 585.3574829101562,
+            "w": 536,
+            "h": 42.5,
+            "right": 690,
+            "bottom": 627.8574829101562,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          }
+        ]
+      },
+      "wheelSteps": 1,
+      "afterWheel": {
+        "dialog": {
+          "x": 134,
+          "y": 55.22421646118164,
+          "w": 576,
+          "h": 358.796875,
+          "right": 710,
+          "bottom": 414.02109146118164
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1076,
+        "clientHeight": 359,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [
+          {
+            "tag": "INPUT",
+            "text": "",
+            "clientWidth": 534,
+            "scrollWidth": 762
+          }
+        ],
+        "buttons": [
+          {
+            "label": "",
+            "x": 658,
+            "y": 63.22421646118164,
+            "w": 44,
+            "h": 43.999996185302734,
+            "right": 702,
+            "bottom": 107.22421264648438,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 154,
+            "y": -96.27578735351562,
+            "w": 536,
+            "h": 41.000003814697266,
+            "right": 690,
+            "bottom": -55.27578353881836,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "New customer…",
+            "x": 154,
+            "y": -49.27578353881836,
+            "w": 104,
+            "h": 19.5,
+            "right": 258,
+            "bottom": -29.77578353881836,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 104,
+            "clientWidth": 104
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 154,
+            "y": 327.7242126464844,
+            "w": 536,
+            "h": 42.5,
+            "right": 690,
+            "bottom": 370.2242126464844,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 159.4045867919922,
+          "bottom": 205.9045867919922,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 153.97158813476562,
+          "bottom": 200.47158813476562,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 151.886474609375,
+          "bottom": 198.386474609375,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 230.6550750732422,
+          "bottom": 277.15509033203125,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 229.41812133789062,
+          "bottom": 275.9181213378906,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 227.54205322265625,
+          "bottom": 274.04205322265625,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 226.8535614013672,
+          "bottom": 273.3535461425781,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Create invoice · +9999999.99 €",
+          "role": "BUTTON",
+          "top": 304.38287353515625,
+          "bottom": 346.88287353515625,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "beforeBusy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 154,
+        "y": 304.0718688964844,
+        "w": 536,
+        "h": 42.5,
+        "right": 690,
+        "bottom": 346.5718688964844,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 536,
+        "clientWidth": 536
+      },
+      "busy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 154,
+        "y": 303.703125,
+        "w": 536,
+        "h": 42.5,
+        "right": 690,
+        "bottom": 346.203125,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 536,
+        "clientWidth": 536
+      },
+      "pendingStatus": [
+        "Saving… the form is locked until the server answers."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": false
+    },
+    {
+      "name": "expense-facts",
+      "width": 844,
+      "height": 390,
+      "mode": "normal",
+      "errors": [],
+      "httpErrors": [],
+      "interceptedWrites": [],
+      "geometry": {
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "w": 844,
+          "h": 972,
+          "right": 844,
+          "bottom": 972
+        },
+        "scrollTop": 0,
+        "scrollHeight": 972,
+        "clientHeight": 972,
+        "overflowY": "visible",
+        "fontSize": "16px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "📎Attach receipt…No source document yet — upload it or pick one from Documents›",
+            "x": 52,
+            "y": 522.5,
+            "w": 740,
+            "h": 64.5,
+            "right": 792,
+            "bottom": 587,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 740,
+            "clientWidth": 740
+          },
+          {
+            "label": "Submit for posting",
+            "x": 58,
+            "y": 709.5,
+            "w": 728,
+            "h": 42.5,
+            "right": 786,
+            "bottom": 752,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 728,
+            "clientWidth": 728
+          },
+          {
+            "label": "Edit draft…",
+            "x": 58,
+            "y": 760,
+            "w": 728,
+            "h": 42.5,
+            "right": 786,
+            "bottom": 802.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 728,
+            "clientWidth": 728
+          },
+          {
+            "label": "Delete draft…",
+            "x": 58,
+            "y": 810.5,
+            "w": 728,
+            "h": 42.5,
+            "right": 786,
+            "bottom": 853,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 728,
+            "clientWidth": 728
+          }
+        ]
+      },
+      "containsFullIdentifier": true,
+      "geometryNoHorizontalOverflow": true,
+      "ok": true
+    },
+    {
+      "name": "expense-confirm",
+      "width": 844,
+      "height": 390,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/expenses/297",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/expenses/297",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 7,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "initial": {
+        "dialog": {
+          "x": 230,
+          "y": 16,
+          "w": 384,
+          "h": 358,
+          "right": 614,
+          "bottom": 374
+        },
+        "scrollTop": 0,
+        "scrollHeight": 509,
+        "clientHeight": 358,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 364.5,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 429.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          },
+          {
+            "label": "Delete",
+            "x": 250,
+            "y": 439.5,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 504.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          }
+        ]
+      },
+      "wheelSteps": 1,
+      "afterWheel": {
+        "dialog": {
+          "x": 230,
+          "y": 16,
+          "w": 384,
+          "h": 358,
+          "right": 614,
+          "bottom": 374
+        },
+        "scrollTop": 151,
+        "scrollHeight": 509,
+        "clientHeight": 358,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 213.5,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 278.5,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          },
+          {
+            "label": "Delete",
+            "x": 250,
+            "y": 288.5,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 353.5,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete",
+          "role": "BUTTON",
+          "top": 288.5,
+          "bottom": 353.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 213.5,
+          "bottom": 278.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete",
+          "role": "BUTTON",
+          "top": 288.5,
+          "bottom": 353.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 213.5,
+          "bottom": 278.5,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete",
+        "x": 250,
+        "y": 288.5,
+        "w": 344,
+        "h": 65,
+        "right": 594,
+        "bottom": 353.5,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 344,
+        "clientWidth": 344
+      },
+      "busy": {
+        "label": "Delete",
+        "x": 250,
+        "y": 288.5,
+        "w": 344,
+        "h": 65,
+        "right": 594,
+        "bottom": 353.5,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 344,
+        "clientWidth": 344
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "entity-long",
+      "width": 844,
+      "height": 390,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/entities/1",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/entities/1",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 7,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "initial": {
+        "dialog": {
+          "x": 230,
+          "y": 16,
+          "w": 384,
+          "h": 358,
+          "right": 614,
+          "bottom": 374
+        },
+        "scrollTop": 0,
+        "scrollHeight": 873,
+        "clientHeight": 358,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 729,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 794,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          },
+          {
+            "label": "Delete entity",
+            "x": 250,
+            "y": 804,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 869,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          }
+        ]
+      },
+      "wheelSteps": 2,
+      "afterWheel": {
+        "dialog": {
+          "x": 230,
+          "y": 16,
+          "w": 384,
+          "h": 358,
+          "right": 614,
+          "bottom": 374
+        },
+        "scrollTop": 515,
+        "scrollHeight": 873,
+        "clientHeight": 358,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 214,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 279,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          },
+          {
+            "label": "Delete entity",
+            "x": 250,
+            "y": 289,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 354,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 289,
+          "bottom": 354,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 214,
+          "bottom": 279,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 289,
+          "bottom": 354,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 214,
+          "bottom": 279,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete entity",
+        "x": 250,
+        "y": 289,
+        "w": 344,
+        "h": 65,
+        "right": 594,
+        "bottom": 354,
+        "inView": true,
+        "hit": false,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 344,
+        "clientWidth": 344
+      },
+      "busy": {
+        "label": "Delete entity",
+        "x": 250,
+        "y": 289,
+        "w": 344,
+        "h": 65,
+        "right": 594,
+        "bottom": 354,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 344,
+        "clientWidth": 344
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "entity-stress",
+      "width": 844,
+      "height": 390,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/entities/2",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/entities/2",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 7,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "initial": {
+        "dialog": {
+          "x": 230,
+          "y": 16,
+          "w": 384,
+          "h": 358,
+          "right": 614,
+          "bottom": 374
+        },
+        "scrollTop": 0,
+        "scrollHeight": 2129,
+        "clientHeight": 358,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 1984.5,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 2049.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          },
+          {
+            "label": "Delete entity",
+            "x": 250,
+            "y": 2059.5,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 2124.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          }
+        ]
+      },
+      "wheelSteps": 6,
+      "afterWheel": {
+        "dialog": {
+          "x": 230,
+          "y": 16,
+          "w": 384,
+          "h": 358,
+          "right": 614,
+          "bottom": 374
+        },
+        "scrollTop": 1771,
+        "scrollHeight": 2129,
+        "clientHeight": 358,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 213.5,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 278.5,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          },
+          {
+            "label": "Delete entity",
+            "x": 250,
+            "y": 288.5,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 353.5,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 288.5,
+          "bottom": 353.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 213.5,
+          "bottom": 278.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 288.5,
+          "bottom": 353.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 213.5,
+          "bottom": 278.5,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete entity",
+        "x": 250,
+        "y": 288.5,
+        "w": 344,
+        "h": 65,
+        "right": 594,
+        "bottom": 353.5,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 344,
+        "clientWidth": 344
+      },
+      "busy": {
+        "label": "Delete entity",
+        "x": 250,
+        "y": 288.5,
+        "w": 344,
+        "h": 65,
+        "right": 594,
+        "bottom": 353.5,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 344,
+        "clientWidth": 344
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "entity-unbroken",
+      "width": 844,
+      "height": 390,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/entities/3",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "DELETE",
+          "path": "/api/entities/3",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 7,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "initial": {
+        "dialog": {
+          "x": 230,
+          "y": 16,
+          "w": 384,
+          "h": 358,
+          "right": 614,
+          "bottom": 374
+        },
+        "scrollTop": 0,
+        "scrollHeight": 995,
+        "clientHeight": 358,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 850.5,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 915.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          },
+          {
+            "label": "Delete entity",
+            "x": 250,
+            "y": 925.5,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 990.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          }
+        ]
+      },
+      "wheelSteps": 3,
+      "afterWheel": {
+        "dialog": {
+          "x": 230,
+          "y": 16,
+          "w": 384,
+          "h": 358,
+          "right": 614,
+          "bottom": 374
+        },
+        "scrollTop": 637,
+        "scrollHeight": 995,
+        "clientHeight": 358,
+        "overflowY": "auto",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "Cancel",
+            "x": 250,
+            "y": 213.5,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 278.5,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": true,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          },
+          {
+            "label": "Delete entity",
+            "x": 250,
+            "y": 288.5,
+            "w": 344,
+            "h": 65,
+            "right": 594,
+            "bottom": 353.5,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 344,
+            "clientWidth": 344
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 288.5,
+          "bottom": 353.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 213.5,
+          "bottom": 278.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Delete entity",
+          "role": "BUTTON",
+          "top": 288.5,
+          "bottom": 353.5,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Cancel",
+          "role": "BUTTON",
+          "top": 213.5,
+          "bottom": 278.5,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "pointerCancelClosed": true,
+      "focusReturned": true,
+      "confirmFocused": true,
+      "beforeBusy": {
+        "label": "Delete entity",
+        "x": 250,
+        "y": 288.5,
+        "w": 344,
+        "h": 65,
+        "right": 594,
+        "bottom": 353.5,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 344,
+        "clientWidth": 344
+      },
+      "busy": {
+        "label": "Delete entity",
+        "x": 250,
+        "y": 288.5,
+        "w": 344,
+        "h": 65,
+        "right": 594,
+        "bottom": 353.5,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 344,
+        "clientWidth": 344
+      },
+      "pendingStatus": [
+        "Working… please wait."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "create-expense",
+      "width": 844,
+      "height": 390,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/expenses",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "POST",
+          "path": "/api/expenses",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 73,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "initial": {
+        "dialog": {
+          "x": 134,
+          "y": 122.13770294189453,
+          "w": 576,
+          "h": 358.796875,
+          "right": 710,
+          "bottom": 480.93457794189453
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1076,
+        "clientHeight": 359,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 658,
+            "y": 130.1376953125,
+            "w": 44,
+            "h": 44,
+            "right": 702,
+            "bottom": 174.1376953125,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC Põhja-Eesti Raamatupidamis- ja Maksunõustamisteenuste Keskus ning Partnerid Rahvusvaheline Esindus TallinnasEE · #1",
+            "x": 154,
+            "y": -2102.8623046875,
+            "w": 536,
+            "h": 273,
+            "right": 690,
+            "bottom": -1829.8623046875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "SYNTHETIC Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜEE · #2",
+            "x": 154,
+            "y": -1829.8623046875,
+            "w": 536,
+            "h": 1533,
+            "right": 690,
+            "bottom": -296.8623046875,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "SYNTHETIC-UnbrokenSupplierRegistrationIdentifier0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZEE · #3",
+            "x": 154,
+            "y": -296.8623046875,
+            "w": 536,
+            "h": 398,
+            "right": 690,
+            "bottom": 101.1376953125,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "New supplier…",
+            "x": 154,
+            "y": 108.13770294189453,
+            "w": 208,
+            "h": 38.99999237060547,
+            "right": 362,
+            "bottom": 147.1376953125,
+            "inView": true,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 208,
+            "clientWidth": 208
+          },
+          {
+            "label": "Create expense · −9999999.99 €",
+            "x": 154,
+            "y": 529.1376953125,
+            "w": 536,
+            "h": 110,
+            "right": 690,
+            "bottom": 639.1376953125,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          }
+        ]
+      },
+      "wheelSteps": 1,
+      "afterWheel": {
+        "dialog": {
+          "x": 134,
+          "y": 44.45404052734375,
+          "w": 576,
+          "h": 358.796875,
+          "right": 710,
+          "bottom": 403.25091552734375
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1076,
+        "clientHeight": 359,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "",
+            "x": 658,
+            "y": 52.45404052734375,
+            "w": 44,
+            "h": 44,
+            "right": 702,
+            "bottom": 96.45404052734375,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC Põhja-Eesti Raamatupidamis- ja Maksunõustamisteenuste Keskus ning Partnerid Rahvusvaheline Esindus TallinnasEE · #1",
+            "x": 154,
+            "y": -2382.5458984375,
+            "w": 536,
+            "h": 273,
+            "right": 690,
+            "bottom": -2109.5458984375,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "SYNTHETIC Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜEE · #2",
+            "x": 154,
+            "y": -2109.5458984375,
+            "w": 536,
+            "h": 1533,
+            "right": 690,
+            "bottom": -576.5458984375,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "SYNTHETIC-UnbrokenSupplierRegistrationIdentifier0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZEE · #3",
+            "x": 154,
+            "y": -576.5459594726562,
+            "w": 536,
+            "h": 398,
+            "right": 690,
+            "bottom": -178.54595947265625,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "New supplier…",
+            "x": 154,
+            "y": -171.54595947265625,
+            "w": 208,
+            "h": 39,
+            "right": 362,
+            "bottom": -132.54595947265625,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 208,
+            "clientWidth": 208
+          },
+          {
+            "label": "Create expense · −9999999.99 €",
+            "x": 154,
+            "y": 249.45404052734375,
+            "w": 536,
+            "h": 110,
+            "right": 690,
+            "bottom": 359.45404052734375,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 163.88934326171875,
+          "bottom": 232.88934326171875,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 162.13339233398438,
+          "bottom": 231.13339233398438,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 159.42062377929688,
+          "bottom": 228.42062377929688,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Create expense · −9999999.99 €",
+          "role": "BUTTON",
+          "top": 239.39122009277344,
+          "bottom": 349.3912353515625,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "beforeBusy": {
+        "label": "Create expense · −9999999.99 €",
+        "x": 154,
+        "y": 238.54339599609375,
+        "w": 536,
+        "h": 110,
+        "right": 690,
+        "bottom": 348.54339599609375,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 536,
+        "clientWidth": 536
+      },
+      "busy": {
+        "label": "Create expense · −9999999.99 €",
+        "x": 154,
+        "y": 236.203125,
+        "w": 536,
+        "h": 110,
+        "right": 690,
+        "bottom": 346.203125,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 536,
+        "clientWidth": 536
+      },
+      "pendingStatus": [
+        "Saving… the form is locked until the server answers."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": true
+    },
+    {
+      "name": "create-invoice",
+      "width": 844,
+      "height": 390,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [
+        {
+          "url": "/api/sales-invoices",
+          "status": 409
+        }
+      ],
+      "interceptedWrites": [
+        {
+          "method": "POST",
+          "path": "/api/sales-invoices",
+          "forwarded": false
+        }
+      ],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 54,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "initial": {
+        "dialog": {
+          "x": 134,
+          "y": 154.61737060546875,
+          "w": 576,
+          "h": 358.796875,
+          "right": 710,
+          "bottom": 513.4142456054688
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1076,
+        "clientHeight": 359,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [
+          {
+            "tag": "INPUT",
+            "text": "",
+            "clientWidth": 534,
+            "scrollWidth": 1500
+          }
+        ],
+        "buttons": [
+          {
+            "label": "",
+            "x": 658,
+            "y": 162.61737060546875,
+            "w": 44,
+            "h": 44,
+            "right": 702,
+            "bottom": 206.61737060546875,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 154,
+            "y": 10.61737060546875,
+            "w": 536,
+            "h": 62,
+            "right": 690,
+            "bottom": 72.61737060546875,
+            "inView": true,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "New customer…",
+            "x": 154,
+            "y": 79.61737060546875,
+            "w": 208,
+            "h": 39,
+            "right": 362,
+            "bottom": 118.61737060546875,
+            "inView": true,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 208,
+            "clientWidth": 208
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 154,
+            "y": 660.6173706054688,
+            "w": 536,
+            "h": 110,
+            "right": 690,
+            "bottom": 770.6173706054688,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          }
+        ]
+      },
+      "wheelSteps": 1,
+      "afterWheel": {
+        "dialog": {
+          "x": 134,
+          "y": 47.40129470825195,
+          "w": 576,
+          "h": 358.796875,
+          "right": 710,
+          "bottom": 406.19816970825195
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1076,
+        "clientHeight": 359,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [
+          {
+            "tag": "INPUT",
+            "text": "",
+            "clientWidth": 534,
+            "scrollWidth": 1500
+          }
+        ],
+        "buttons": [
+          {
+            "label": "",
+            "x": 658,
+            "y": 55.40129470825195,
+            "w": 44,
+            "h": 43.999996185302734,
+            "right": 702,
+            "bottom": 99.40129089355469,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 44,
+            "clientWidth": 44
+          },
+          {
+            "label": "SYNTHETIC CustomerEE · #4",
+            "x": 154,
+            "y": -396.59869384765625,
+            "w": 536,
+            "h": 62,
+            "right": 690,
+            "bottom": -334.59869384765625,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          },
+          {
+            "label": "New customer…",
+            "x": 154,
+            "y": -327.59869384765625,
+            "w": 208,
+            "h": 39,
+            "right": 362,
+            "bottom": -288.59869384765625,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 208,
+            "clientWidth": 208
+          },
+          {
+            "label": "Create invoice · +9999999.99 €",
+            "x": 154,
+            "y": 253.4012908935547,
+            "w": 536,
+            "h": 110.00001525878906,
+            "right": 690,
+            "bottom": 363.40130615234375,
+            "inView": true,
+            "hit": true,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 536,
+            "clientWidth": 536
+          }
+        ]
+      },
+      "keyboard": [
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 219.96926879882812,
+          "bottom": 288.9692687988281,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 217.884521484375,
+          "bottom": 286.884521484375,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 214.65370178222656,
+          "bottom": 283.6536865234375,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 300.3893127441406,
+          "bottom": 369.3893127441406,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 299.5418395996094,
+          "bottom": 368.5418395996094,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 298.3055419921875,
+          "bottom": 367.3055419921875,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "",
+          "role": "INPUT",
+          "top": 297.5718078613281,
+          "bottom": 366.5718078613281,
+          "inView": true,
+          "inside": true
+        },
+        {
+          "label": "Create invoice · +9999999.99 €",
+          "role": "BUTTON",
+          "top": 236.36123657226562,
+          "bottom": 346.3612365722656,
+          "inView": true,
+          "inside": true
+        }
+      ],
+      "beforeBusy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 154,
+        "y": 236.24119567871094,
+        "w": 536,
+        "h": 110.00001525878906,
+        "right": 690,
+        "bottom": 346.2412109375,
+        "inView": true,
+        "hit": true,
+        "disabled": false,
+        "busy": null,
+        "focused": true,
+        "scrollWidth": 536,
+        "clientWidth": 536
+      },
+      "busy": {
+        "label": "Create invoice · +9999999.99 €",
+        "x": 154,
+        "y": 236.203125,
+        "w": 536,
+        "h": 110,
+        "right": 690,
+        "bottom": 346.203125,
+        "inView": true,
+        "hit": true,
+        "disabled": true,
+        "busy": "true",
+        "focused": false,
+        "scrollWidth": 536,
+        "clientWidth": 536
+      },
+      "pendingStatus": [
+        "Saving… the form is locked until the server answers."
+      ],
+      "busyGeometryStable": true,
+      "pointerReachable": true,
+      "keyboardReachable": true,
+      "ok": false
+    },
+    {
+      "name": "expense-facts",
+      "width": 844,
+      "height": 390,
+      "mode": "synthetic200",
+      "errors": [],
+      "httpErrors": [],
+      "interceptedWrites": [],
+      "textScale": {
+        "kind": "SYNTHETIC scoped computed font-size and px line-height x2; no transform, root/rem boxes unchanged",
+        "elements": 56,
+        "rootFont": "16px",
+        "before": 16,
+        "after": 32
+      },
+      "geometry": {
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "w": 844,
+          "h": 1739.5,
+          "right": 844,
+          "bottom": 1739.5
+        },
+        "scrollTop": 0,
+        "scrollHeight": 1740,
+        "clientHeight": 1740,
+        "overflowY": "visible",
+        "fontSize": "32px",
+        "documentOverflow": false,
+        "overflowElements": [],
+        "buttons": [
+          {
+            "label": "📎Attach receipt…No source document yet — upload it or pick one from Documents›",
+            "x": 52,
+            "y": 1088,
+            "w": 740,
+            "h": 142.5,
+            "right": 792,
+            "bottom": 1230.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 740,
+            "clientWidth": 740
+          },
+          {
+            "label": "Submit for posting",
+            "x": 58,
+            "y": 1409.5,
+            "w": 728,
+            "h": 65,
+            "right": 786,
+            "bottom": 1474.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 728,
+            "clientWidth": 728
+          },
+          {
+            "label": "Edit draft…",
+            "x": 58,
+            "y": 1482.5,
+            "w": 728,
+            "h": 65,
+            "right": 786,
+            "bottom": 1547.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 728,
+            "clientWidth": 728
+          },
+          {
+            "label": "Delete draft…",
+            "x": 58,
+            "y": 1555.5,
+            "w": 728,
+            "h": 65,
+            "right": 786,
+            "bottom": 1620.5,
+            "inView": false,
+            "hit": false,
+            "disabled": false,
+            "busy": null,
+            "focused": false,
+            "scrollWidth": 728,
+            "clientWidth": 728
+          }
+        ]
+      },
+      "containsFullIdentifier": true,
+      "geometryNoHorizontalOverflow": true,
+      "ok": true
+    }
+  ],
+  "browser": "153.0.8010.12",
+  "nativeControl": [
+    {
+      "width": 320,
+      "height": 568,
+      "command": "accepted",
+      "before": {
+        "title": {
+          "font": "17px",
+          "lineHeight": "25.5px",
+          "rangeWidth": 190,
+          "rangeHeight": 21
+        },
+        "body": {
+          "font": "13.5px",
+          "lineHeight": "20.25px",
+          "rangeWidth": 232,
+          "rangeHeight": 179
+        },
+        "rootFont": "16px",
+        "visualScale": 1
+      },
+      "after": {
+        "title": {
+          "font": "17px",
+          "lineHeight": "25.5px",
+          "rangeWidth": 190,
+          "rangeHeight": 21
+        },
+        "body": {
+          "font": "13.5px",
+          "lineHeight": "20.25px",
+          "rangeWidth": 232,
+          "rangeHeight": 179
+        },
+        "rootFont": "16px",
+        "visualScale": 1
+      },
+      "measurableEffect": false
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "command": "accepted",
+      "before": {
+        "title": {
+          "font": "17px",
+          "lineHeight": "25.5px",
+          "rangeWidth": 190,
+          "rangeHeight": 21
+        },
+        "body": {
+          "font": "13.5px",
+          "lineHeight": "20.25px",
+          "rangeWidth": 344,
+          "rangeHeight": 138.5
+        },
+        "rootFont": "16px",
+        "visualScale": 1
+      },
+      "after": {
+        "title": {
+          "font": "17px",
+          "lineHeight": "25.5px",
+          "rangeWidth": 190,
+          "rangeHeight": 21
+        },
+        "body": {
+          "font": "13.5px",
+          "lineHeight": "20.25px",
+          "rangeWidth": 344,
+          "rangeHeight": 138.5
+        },
+        "rootFont": "16px",
+        "visualScale": 1
+      },
+      "measurableEffect": false
+    }
+  ]
+}

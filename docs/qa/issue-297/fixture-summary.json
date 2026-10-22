@@ -1,0 +1,24 @@
+{
+  "synthetic": true,
+  "names": {
+    "1": {
+      "name": "SYNTHETIC Põhja-Eesti Raamatupidamis- ja Maksunõustamisteenuste Keskus ning Partnerid Rahvusvaheline Esindus Tallinnas",
+      "length": 118
+    },
+    "2": {
+      "name": "SYNTHETIC Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ — Baltic Sea Freight Forwarding, Warehousing, Customs Brokerage and Industrial Equipment Leasing Cooperative of Harju County Enterprises with Subsidiaries in Tartu, Pärnu and Narva, Registered Office Tallinn, Estonia OÜ",
+      "length": 667
+    },
+    "3": {
+      "name": "SYNTHETIC-UnbrokenSupplierRegistrationIdentifier0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      "length": 192
+    },
+    "4": {
+      "name": "SYNTHETIC Customer",
+      "length": 18
+    }
+  },
+  "expenses": 1,
+  "amount": "9999999.99 USD",
+  "foreignKeyCheck": []
+}
