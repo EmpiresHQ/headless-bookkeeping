@@ -61,6 +61,10 @@ import {
 import { formatStatementPeriod, formatTxDate, txTitle } from './format';
 import { LoadError } from './LoadError';
 import { undoIncomplete } from './lineResults';
+import {
+  restoredStatementSelection,
+  statementSelectionState,
+} from './statementSelection';
 import { STATEMENT_SEARCH, lineMatches } from './search';
 import {
   bucketOf,
@@ -366,14 +370,15 @@ export function StatementScreen() {
     if (preselectedFor.current !== statementId && proposalsQ.data) {
       preselectedFor.current = statementId;
       setSelected(
-        new Set(
-          proposalsQ.data
-            .filter((p) => p.confidence === 'high')
-            .map(proposalKey),
-        ),
+        restoredStatementSelection(location.state, statementId) ??
+          new Set(
+            proposalsQ.data
+              .filter((p) => p.confidence === 'high')
+              .map(proposalKey),
+          ),
       );
     }
-  }, [statementId, proposalsQ.data]);
+  }, [statementId, proposalsQ.data, location.state]);
 
   const statement = statementsQ.data?.find((s) => s.id === statementId);
   const lines = useMemo(
@@ -412,14 +417,23 @@ export function StatementScreen() {
       !proposalsQ.isPending,
   );
 
-  const toggleProposal = (p: MatchProposalView) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      const key = proposalKey(p);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
+  const toggleProposal = (p: MatchProposalView) => {
+    const next = new Set(selected);
+    const key = proposalKey(p);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setSelected(next);
+    // Replace this entry: Back from a line restores the explicit choices,
+    // while a new statement visit starts from the normal defaults. Filter
+    // writes already preserve entry state. No token is stored in history.
+    setSearchParams(searchParams, {
+      replace: true,
+      state: {
+        ...location.state,
+        statementSelection: statementSelectionState(statementId, next),
+      },
     });
+  };
 
   const proposalLines = lines.filter((l) => bucketOf(l) === 'proposals');
   const decideLines = lines.filter((l) => bucketOf(l) === 'decide');

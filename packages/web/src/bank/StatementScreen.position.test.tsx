@@ -334,3 +334,66 @@ describe('StatementScreen list return (issue #355)', () => {
     expect(document.activeElement).toBe(document.body);
   });
 });
+
+describe('statement selection across a detail visit (#303)', () => {
+  it('keeps explicit selections and deselections after Back, including an empty selection', async () => {
+    vi.mocked(api.proposeMatches).mockResolvedValue([
+      PROPOSALS[0],
+      { ...PROPOSALS[1], confidence: 'high' },
+    ]);
+    mountAt('/bank/statements/3');
+    fireEvent.click(
+      await screen.findByRole('checkbox', { name: 'Select match Expense #71' }),
+    );
+    await settle();
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Select match Expense #72' }),
+    );
+    await settle();
+    await open(nav('Expense #71'));
+    await headerBack();
+    expect(
+      screen.getByRole('checkbox', { name: 'Select match Expense #71' }),
+    ).toHaveAttribute('aria-checked', 'true');
+    expect(
+      screen.getByRole('checkbox', { name: 'Select match Expense #72' }),
+    ).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Select match Expense #71' }),
+    );
+    await settle();
+    await open(nav('Expense #71'));
+    await headerBack();
+    expect(
+      screen
+        .getAllByRole('checkbox')
+        .every((box) => box.getAttribute('aria-checked') === 'false'),
+    ).toBe(true);
+  });
+
+  it('does not carry a selection into a new visit or another sign-in', async () => {
+    mountAt('/bank/statements/3');
+    fireEvent.click(
+      await screen.findByRole('checkbox', { name: 'Select match Expense #71' }),
+    );
+    await settle();
+    await open(nav('Expense #71'));
+    await act(async () => {
+      await router.navigate('/bank/statements/3');
+    });
+    await settle();
+    expect(
+      screen.getByRole('checkbox', { name: 'Select match Expense #71' }),
+    ).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Select match Expense #71' }),
+    );
+    await settle();
+    await open(nav('Expense #71'));
+    setToken('token-b');
+    await headerBack();
+    expect(
+      screen.getByRole('checkbox', { name: 'Select match Expense #71' }),
+    ).toHaveAttribute('aria-checked', 'false');
+  });
+});

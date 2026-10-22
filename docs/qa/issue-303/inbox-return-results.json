@@ -1,0 +1,104 @@
+[
+  {
+    "width": 1440,
+    "height": 900,
+    "index": 5,
+    "href": "/inbox/doc/596",
+    "before": 811.25,
+    "leave": {
+      "href": "/inbox/doc/596",
+      "top": 811.25,
+      "y": 39
+    },
+    "after": 803.25,
+    "deltaFromBefore": -8,
+    "deltaFromLeave": -8,
+    "openMs": 202,
+    "returnMsIncluding250msSettle": 1107
+  },
+  {
+    "width": 1440,
+    "height": 900,
+    "index": 500,
+    "href": "/inbox/approval/251",
+    "before": 53795.25,
+    "leave": {
+      "href": "/inbox/approval/251",
+      "top": 416.25,
+      "y": 53426
+    },
+    "after": 416.25,
+    "deltaFromBefore": -53379,
+    "deltaFromLeave": 0,
+    "openMs": 153,
+    "returnMsIncluding250msSettle": 958
+  },
+  {
+    "width": 1440,
+    "height": 900,
+    "index": 990,
+    "href": "/inbox/approval/6",
+    "before": 50884.5,
+    "leave": {
+      "href": "/inbox/approval/6",
+      "top": 416.5,
+      "y": 103894
+    },
+    "after": 416.5,
+    "deltaFromBefore": -50468,
+    "deltaFromLeave": 0,
+    "openMs": 165,
+    "returnMsIncluding250msSettle": 1136
+  },
+  {
+    "width": 1920,
+    "height": 1080,
+    "index": 5,
+    "href": "/inbox/doc/596",
+    "before": 850.25,
+    "leave": {
+      "href": "/inbox/doc/596",
+      "top": 850.25,
+      "y": 0
+    },
+    "after": 850.25,
+    "deltaFromBefore": 0,
+    "deltaFromLeave": 0,
+    "openMs": 243,
+    "returnMsIncluding250msSettle": 1002
+  },
+  {
+    "width": 1920,
+    "height": 1080,
+    "index": 500,
+    "href": "/inbox/approval/251",
+    "before": 53842.25,
+    "leave": {
+      "href": "/inbox/approval/251",
+      "top": 506.25,
+      "y": 53336
+    },
+    "after": 506.25,
+    "deltaFromBefore": -53336,
+    "deltaFromLeave": 0,
+    "openMs": 801,
+    "returnMsIncluding250msSettle": 963
+  },
+  {
+    "width": 1920,
+    "height": 1080,
+    "index": 990,
+    "href": "/inbox/approval/6",
+    "before": 50974.5,
+    "leave": {
+      "href": "/inbox/approval/6",
+      "top": -0.5,
+      "y": 104311
+    },
+    "after": 7.5,
+    "deltaFromBefore": -50967,
+    "deltaFromLeave": 8,
+    "openMs": 1297,
+    "returnMsIncluding250msSettle": 1446
+  }
+]

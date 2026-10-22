@@ -1,0 +1,17 @@
+npm notice run @headless-bookkeeping/web@0.0.1 test
+npm notice run vitest run src/bank/StatementScreen.position.test.tsx src/bank/StatementScreen.test.tsx src/bank/StatementScreen.search.test.tsx --minWorkers=1 --maxWorkers=2
+
+ RUN  v2.1.9 /root/.cache/hbk-worktrees/issue-303/packages/web
+
+ ✓ src/bank/StatementScreen.search.test.tsx (8 tests) 974ms
+ ✓ src/bank/StatementScreen.test.tsx (20 tests) 1392ms
+ ✓ src/bank/StatementScreen.position.test.tsx (10 tests) 2459ms
+   ✓ StatementScreen list return (issue #355) > header Back lands on the SECOND proposal control opened, focused — not the first, the checkbox or the line 356ms
+   ✓ StatementScreen list return (issue #355) > browser Back lands on a staged control, never its Confirm 340ms
+   ✓ StatementScreen list return (issue #355) > a failed proposals read still returns (settled); its Retry re-anchors the exact control 396ms
+   ✓ statement selection across a detail visit (#303) > keeps explicit selections and deselections after Back, including an empty selection 344ms
+
+ Test Files  3 passed (3)
+      Tests  38 passed (38)
+   Start at  11:34:33
+   Duration  6.39s (transform 656ms, setup 144ms, collect 1.84s, tests 4.82s, environment 1.28s, prepare 297ms)

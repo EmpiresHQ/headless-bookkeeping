@@ -1,0 +1,47 @@
+[
+  {
+    "path": "/api/expenses",
+    "status": 200,
+    "ms": 208,
+    "bytes": 754143,
+    "counts": {
+      "expenses": 1200
+    }
+  },
+  {
+    "path": "/api/triage/needs-triage",
+    "status": 200,
+    "ms": 54,
+    "bytes": 128195,
+    "counts": {
+      "items": 600
+    }
+  },
+  {
+    "path": "/api/approvals?status=pending",
+    "status": 200,
+    "ms": 36,
+    "bytes": 90599,
+    "counts": {
+      "approvals": 400
+    }
+  },
+  {
+    "path": "/api/bank-statements",
+    "status": 200,
+    "ms": 40,
+    "bytes": 3928,
+    "counts": {
+      "array": 24
+    }
+  },
+  {
+    "path": "/api/bank-statements/3/transactions",
+    "status": 200,
+    "ms": 104,
+    "bytes": 640344,
+    "counts": {
+      "array": 1000
+    }
+  }
+]
