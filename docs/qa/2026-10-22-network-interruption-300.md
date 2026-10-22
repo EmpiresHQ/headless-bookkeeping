@@ -39,31 +39,32 @@ this run uses real accounting services and an actual SQLite database.
   from being confused with application retry.
 - Every case captures real server response events, persisted business records,
   counts before/after, UI text, screenshot and page errors. `harnessPass` means
-  the scenario/observational assertions completed; `verdict` overrides it for
-  the two **FAIL** defect observations. No page errors occurred in the final matrix.
+  the scenario/observational assertions completed; `verdict` is a separate explicit requirement outcome for every case.
+  C2 is **FAIL (known limitation)**, C3/C7 are **FAIL**, and L1 is **UNVERIFIED**;
+  driver completion never supplies a default PASS. No page errors occurred in the final matrix.
 
 ## Results
 
-| Case        | Fault and recovery                                                                                 | Persisted result / verdict                                                                                |
-| ----------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| C1          | Create blocked before upstream; reconnect, explicit retry                                          | First attempt 0 drafts; retry 1 draft. PASS                                                               |
-| C2          | Create committed, body lost; explicit repeat after truthful warning                                | First attempt 1 draft; repeat creates another. Known unknown-outcome limitation, not a no-duplicate pass  |
-| C3          | One New expense submit; create committed, empty response                                           | **FAIL: 1 browser request, 2 wire POSTs, 2 drafts. UI reports Done for the second**                       |
-| C4          | Create response held after commit; Escape and SPA Back; offline/reconnect/listener events; release | Pending navigation refused; response release completes the original flow. One draft. PASS                 |
-| C5          | Reload while committed create response held; release old response                                  | One draft; retained unknown/interrupted operation result; no automatic replay or late navigation. PASS    |
-| C6          | Chromium offline before submit; reconnect, explicit retry                                          | 0 server POSTs until explicit retry; then 1 draft. PASS                                                   |
-| C7          | Single bare fetch, same empty-response fault, no app handler                                       | **FAIL: 1 fetch/request, 2 wire POSTs, 2 drafts**; independent control confirms transport retry           |
-| U1          | Upload blocked before upstream; retry                                                              | One Document, one pending Expense, one Approval. PASS                                                     |
-| U2          | Upload committed, body lost; repeat same file                                                      | Hash dedup returns existing Document, then intake runs once; one Expense/Approval. PASS                   |
-| U3          | Triage blocked before upstream; Retry processing                                                   | Retry does not re-upload; one Document/Expense/Approval. PASS                                             |
-| U4          | Triage committed, body lost; Retry processing                                                      | Existing outcome replayed; one Document/Expense/Approval. PASS                                            |
-| B1          | Bank-line create blocked before upstream; repeat                                                   | One Expense, posting and match activation once. PASS                                                      |
-| B2          | Bank-line posting committed, body lost                                                             | One Expense/Voucher; honest partial receipt. Reload shows the existing open item. PASS                    |
-| B2 recovery | Select that open item and Match                                                                    | Existing Expense settled, no new Expense. One active match. PASS                                          |
-| B3          | Match staging committed, body lost; Confirm match                                                  | One original staged pair/Approval; confirmation activates it once. PASS                                   |
-| B4          | Approval committed, body lost                                                                      | Existing match is active; no repeat approval or duplicate settlement. PASS                                |
-| B5          | Match blocked before upstream; select existing item and Match                                      | First attempt stores no match; recovery uses existing Expense, one active pair. PASS                      |
-| L1          | CDP frozen/active and second foreground tab probe                                                  | **Not an actual suspension**: 9 timer ticks in 900ms, no freeze/resume events, visibility remains visible |
+| Case        | Fault and recovery                                                                                 | Persisted result / verdict                                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| C1          | Create blocked before upstream; reconnect, explicit retry                                          | First attempt 0 drafts; retry 1 draft. PASS                                                                                  |
+| C2          | Create committed, body lost; explicit repeat after truthful warning                                | **FAIL (known limitation):** first attempt 1 draft; explicit repeat creates another                                          |
+| C3          | One New expense submit; create committed, empty response                                           | **FAIL: 1 browser request, 2 wire POSTs, 2 drafts. UI reports Done for the second**                                          |
+| C4          | Create response held after commit; Escape and SPA Back; offline/reconnect/listener events; release | Pending navigation refused; response release completes the original flow. One draft. PASS                                    |
+| C5          | Reload while committed create response held; release old response                                  | One draft; retained unknown/interrupted operation result; no automatic replay or late navigation. PASS                       |
+| C6          | Chromium offline before submit; reconnect, explicit retry                                          | 0 server POSTs until explicit retry; then 1 draft. PASS                                                                      |
+| C7          | Single bare fetch, same empty-response fault, no app handler                                       | **FAIL: 1 fetch/request, 2 wire POSTs, 2 drafts**; independent control confirms transport retry                              |
+| U1          | Upload blocked before upstream; retry                                                              | One Document, one pending Expense, one Approval. PASS                                                                        |
+| U2          | Upload committed, body lost; repeat same file                                                      | Hash dedup returns existing Document, then intake runs once; one Expense/Approval. PASS                                      |
+| U3          | Triage blocked before upstream; Retry processing                                                   | Retry does not re-upload; one Document/Expense/Approval. PASS                                                                |
+| U4          | Triage committed, body lost; Retry processing                                                      | Existing outcome replayed; one Document/Expense/Approval. PASS                                                               |
+| B1          | Bank-line create blocked before upstream; repeat                                                   | One Expense, posting and match activation once. PASS                                                                         |
+| B2          | Bank-line posting committed, body lost                                                             | One Expense/Voucher; honest partial receipt. Reload shows the existing open item. PASS                                       |
+| B2 recovery | Select that open item and Match                                                                    | Existing Expense settled, no new Expense. One active match. PASS                                                             |
+| B3          | Match staging committed, body lost; Confirm match                                                  | One original staged pair/Approval; confirmation activates it once. PASS                                                      |
+| B4          | Approval committed, body lost                                                                      | Existing match is active; no repeat approval or duplicate settlement. PASS                                                   |
+| B5          | Match blocked before upstream; select existing item and Match                                      | First attempt stores no match; recovery uses existing Expense, one active pair. PASS                                         |
+| L1          | CDP frozen/active and second foreground tab probe                                                  | **UNVERIFIED — actual suspension not observed:** 9 timer ticks in 900ms, no freeze/resume events, visibility remains visible |
 
 After handled faults, offline/reconnect plus synthetic blur/visibility/focus
 listener events produced **zero automatic mutation POSTs**. Synthetic listener

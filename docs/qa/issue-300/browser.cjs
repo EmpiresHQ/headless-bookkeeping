@@ -23,6 +23,29 @@ const results = fs.existsSync(resultFile)
       synthetic: true,
       cases: [],
     };
+// Requirement verdicts are explicit per case, independent of driver completion.
+const CASE_VERDICTS = {
+  'C1-create-before': 'PASS: scoped recovery assertions satisfied',
+  'C2-create-after': 'UNVERIFIED: awaiting persisted-count observation',
+  'C3-empty-response': 'UNVERIFIED: awaiting persisted-count observation',
+  'U1-upload-before': 'PASS: scoped recovery assertions satisfied',
+  'U2-upload-after': 'PASS: scoped recovery assertions satisfied',
+  'U3-triage-before': 'PASS: scoped recovery assertions satisfied',
+  'U4-triage-after': 'PASS: scoped recovery assertions satisfied',
+  'C5-reload-unknown': 'PASS: scoped recovery assertions satisfied',
+  'C4-held-navigation': 'PASS: scoped recovery assertions satisfied',
+  'B1-create-before': 'PASS: scoped recovery assertions satisfied',
+  'B2-post-after': 'PASS: scoped recovery assertions satisfied',
+  'B2-recover-open-item': 'PASS: scoped recovery assertions satisfied',
+  'B3-match-after': 'PASS: scoped recovery assertions satisfied',
+  'B4-approve-after': 'PASS: scoped recovery assertions satisfied',
+  'C6-offline-before': 'PASS: scoped recovery assertions satisfied',
+  'C7-bare-fetch-empty-response':
+    'UNVERIFIED: awaiting persisted-count observation',
+  'L1-lifecycle-probe':
+    'UNVERIFIED: actual suspension was not observed; visibility stayed visible and timers continued',
+  'B5-match-before': 'PASS: scoped recovery assertions satisfied',
+};
 const counts = (s) =>
   Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.length]));
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -41,6 +64,10 @@ const pause = (ms) => new Promise((r) => setTimeout(r, ms));
       results.cases.some((c) => c.id === id && c.harnessPass)
     )
       return;
+    assert.ok(
+      CASE_VERDICTS[id],
+      `Explicit requirement verdict missing for ${id}`,
+    );
     const context = await browser.newContext({
       viewport: mobile
         ? { width: 390, height: 844 }
@@ -64,6 +91,7 @@ const pause = (ms) => new Promise((r) => setTimeout(r, ms));
     const before = await control('state');
     const rec = {
       id,
+      verdict: CASE_VERDICTS[id],
       viewport: mobile ? '390x844 emulated touch' : '1440x900 desktop',
       before: counts(before.snapshot),
       pageErrors: errors,
@@ -99,9 +127,7 @@ const pause = (ms) => new Promise((r) => setTimeout(r, ms));
     fs.writeFileSync(resultFile, JSON.stringify(results, null, 2));
     await control('release', {});
     await context.close();
-    console.log(
-      `${id}: ${rec.harnessPass ? rec.verdict || 'PASS' : 'HARNESS FAIL'}`,
-    );
+    console.log(`${id}: ${rec.harnessPass ? rec.verdict : 'HARNESS FAIL'}`);
   }
   async function createForm(page, gross) {
     await page.goto(`${base}/books?seg=expenses`);
@@ -178,6 +204,10 @@ const pause = (ms) => new Promise((r) => setTimeout(r, ms));
       await p.waitForURL(/\/books\/expenses\/\d+$/);
       r.explicitRetryAddedDraft =
         (await control('state')).snapshot.expense.length - r.before.expense;
+      r.verdict =
+        r.explicitRetryAddedDraft > 1
+          ? 'FAIL (known limitation): explicit retry after unconfirmed create persisted two drafts'
+          : 'PASS: explicit retry retained one draft';
       assert.equal(r.explicitRetryAddedDraft, 2);
     },
     true,

@@ -1,4 +1,4 @@
-799f83cfb353433b05329c08f3e34a9568fffdaa39de0454cc3152e30789348c  docs/qa/2026-10-22-network-interruption-300.md
+9be4521cbfa3278809948c8b6f60545d102d6d69cbf7ff7ad41571ad6f6ba989  docs/qa/2026-10-22-network-interruption-300.md
 93a1019add500d5b878e64591d2285ba59a3dd163d22adba03d1cd1276036c33  docs/qa/issue-300/B1-create-before.png
 79eb4f3d08aac436e233594e6d32404eb477710d4a3b7f144a15550b6d9994aa  docs/qa/issue-300/B2-post-after.png
 f2b7079a0c6f067e50727fc399e8dff5e2bd11d6d0ac927652f5249de226a7fc  docs/qa/issue-300/B2-recover-open-item.png
@@ -17,11 +17,11 @@ bdc533af48358188f6af85a3ad40c1a200e88ec7553979adbda7a6e5f10f2bb8  docs/qa/issue-
 ce3a23de32bbf97052d09f6fe0d0ac140ab128ff31bb1d469be6ca8e5ee8013c  docs/qa/issue-300/U2-upload-after.png
 70b4e6083c4d71482ee58a5dc0faf37a0d5636f08918ea0db887eaa7a9c39fc0  docs/qa/issue-300/U3-triage-before.png
 92d7ca932cd1b968df3624b9e099d931841a051c7bebbbef0ed012f3b48d97f9  docs/qa/issue-300/U4-triage-after.png
-05ca816b3d2bebab01adee9ea2e4f863a728cae7ed431d6ef3a4b3fed3e92e27  docs/qa/issue-300/audit.cjs
-dffb44a038db3348619353975d52cb541b3dcc862a43230c38bb775ee7c2c93c  docs/qa/issue-300/audit.json
+3f8548a88f3d51d530bc1104a6390be075b32a28203aed0bc42e6f7c46b726b6  docs/qa/issue-300/audit.cjs
+222c3ae6c7b59414988d5cab96aa113dd1db83a7a6978c4d8712b9c17babce5b  docs/qa/issue-300/audit.json
 c7c4668f66979754fff4404c95aabb6e8c43773e47d6aab7cde56235a0ba1303  docs/qa/issue-300/backend.cjs
-233e63b9a72bc71d9af955fce087b7db99a32712ee3c8c3eaf9299d33e57a165  docs/qa/issue-300/browser.cjs
+acd3bd380786926d219696d25eccc15e39bfc7270cb0bf6b316e9048e9106c22  docs/qa/issue-300/browser.cjs
 bfa33a8c5bc69e4e86bdbb9c91f72e93a9219d99f3a71731541a6b12175622f5  docs/qa/issue-300/build.json
 b25646f2bd70a930c8c59bfeae2c4f3fce3eefd7dd655c8cf0869c72d2aed62a  docs/qa/issue-300/proxy.cjs
 c88a9fb6200077a704ace577b2a7cdf251095d04d9e4c89003dcab5ecc342545  docs/qa/issue-300/repro-red.json
-9395739433dd52b5ec8523dbf11865334851840f043bbbc69cbdc8b544512dcb  docs/qa/issue-300/results.json
+e2c66dc99ed2765e33ba8a4a4a30115b1d92f6b5c857572d564e4c11b4f70d58  docs/qa/issue-300/results.json

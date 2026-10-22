@@ -64,10 +64,18 @@ const counts = Object.fromEntries(
   ].map((t) => [t, db.prepare(`SELECT count(*) n FROM ${t}`).get().n]),
 );
 const evidence = JSON.parse(fs.readFileSync('docs/qa/issue-300/results.json'));
+assert.ok(
+  evidence.cases.every(
+    (c) =>
+      typeof c.verdict === 'string' &&
+      /^(PASS|FAIL|UNVERIFIED)(:| \()/.test(c.verdict),
+  ),
+  'Explicit requirement verdict required for every case; harness completion is separate',
+);
 const cases = evidence.cases.map((c) => ({
   id: c.id,
   harnessPass: c.harnessPass,
-  verdict: c.verdict || 'PASS',
+  verdict: c.verdict,
   before: c.before,
   after: c.after,
   mutations: c.events

@@ -187,7 +187,8 @@
         "matches": [],
         "approvals": []
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     },
     {
       "id": "C2-create-after",
@@ -433,7 +434,8 @@
         "matches": [],
         "approvals": []
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "FAIL (known limitation): explicit retry after unconfirmed create persisted two drafts"
     },
     {
       "id": "C3-empty-response",
@@ -1373,7 +1375,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     },
     {
       "id": "U2-upload-after",
@@ -2168,7 +2171,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     },
     {
       "id": "U3-triage-before",
@@ -3100,7 +3104,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     },
     {
       "id": "U4-triage-after",
@@ -4206,7 +4211,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     },
     {
       "id": "C5-reload-unknown",
@@ -4832,7 +4838,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     },
     {
       "id": "C4-held-navigation",
@@ -5677,7 +5684,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     },
     {
       "id": "B1-create-before",
@@ -7375,7 +7383,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     },
     {
       "id": "B2-post-after",
@@ -9312,7 +9321,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     },
     {
       "id": "B2-recover-open-item",
@@ -10281,7 +10291,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     },
     {
       "id": "B3-match-after",
@@ -12492,7 +12503,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     },
     {
       "id": "B4-approve-after",
@@ -14882,7 +14894,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     },
     {
       "id": "C6-offline-before",
@@ -15959,7 +15972,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     },
     {
       "id": "C7-bare-fetch-empty-response",
@@ -18096,7 +18110,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "UNVERIFIED: actual suspension was not observed; visibility stayed visible and timers continued"
     },
     {
       "id": "B5-match-before",
@@ -20833,7 +20848,8 @@
           }
         ]
       },
-      "harnessPass": true
+      "harnessPass": true,
+      "verdict": "PASS: scoped recovery assertions satisfied"
     }
   ],
   "browser": "153.0.8010.12"

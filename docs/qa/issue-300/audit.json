@@ -74,7 +74,7 @@
     {
       "id": "C1-create-before",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 0,
         "document_source": 0,
@@ -105,7 +105,7 @@
     {
       "id": "C2-create-after",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "FAIL (known limitation): explicit retry after unconfirmed create persisted two drafts",
       "before": {
         "document": 0,
         "document_source": 0,
@@ -176,7 +176,7 @@
     {
       "id": "U1-upload-before",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 0,
         "document_source": 0,
@@ -211,7 +211,7 @@
     {
       "id": "U2-upload-after",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 1,
         "document_source": 1,
@@ -250,7 +250,7 @@
     {
       "id": "U3-triage-before",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 2,
         "document_source": 3,
@@ -285,7 +285,7 @@
     {
       "id": "U4-triage-after",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 3,
         "document_source": 4,
@@ -324,7 +324,7 @@
     {
       "id": "C5-reload-unknown",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 4,
         "document_source": 5,
@@ -355,7 +355,7 @@
     {
       "id": "C4-held-navigation",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 4,
         "document_source": 5,
@@ -386,7 +386,7 @@
     {
       "id": "B1-create-before",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 4,
         "document_source": 5,
@@ -429,7 +429,7 @@
     {
       "id": "B2-post-after",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 4,
         "document_source": 5,
@@ -464,7 +464,7 @@
     {
       "id": "B2-recover-open-item",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 4,
         "document_source": 5,
@@ -499,7 +499,7 @@
     {
       "id": "B3-match-after",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 4,
         "document_source": 5,
@@ -542,7 +542,7 @@
     {
       "id": "B4-approve-after",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 4,
         "document_source": 5,
@@ -585,7 +585,7 @@
     {
       "id": "C6-offline-before",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 4,
         "document_source": 5,
@@ -652,7 +652,7 @@
     {
       "id": "L1-lifecycle-probe",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "UNVERIFIED: actual suspension was not observed; visibility stayed visible and timers continued",
       "before": {
         "document": 4,
         "document_source": 5,
@@ -678,7 +678,7 @@
     {
       "id": "B5-match-before",
       "harnessPass": true,
-      "verdict": "PASS",
+      "verdict": "PASS: scoped recovery assertions satisfied",
       "before": {
         "document": 4,
         "document_source": 5,
