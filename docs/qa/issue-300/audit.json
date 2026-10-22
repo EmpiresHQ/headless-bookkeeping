@@ -1,0 +1,722 @@
+{
+  "synthetic": true,
+  "foreignKeyCheck": [],
+  "integrityCheck": [
+    {
+      "integrity_check": "ok"
+    }
+  ],
+  "counts": {
+    "expense": 28,
+    "document": 4,
+    "document_source": 5,
+    "voucher": 10,
+    "voucher_line": 20,
+    "approval": 13,
+    "reconciliation_match": 5
+  },
+  "balancedVouchers": 10,
+  "hashChain": [
+    {
+      "id": 1,
+      "number": "V-2026-000001",
+      "hash": "7087b1855d0966516b508b3f31ed14fb672d49893f9b656d13793bfdf84c6909"
+    },
+    {
+      "id": 2,
+      "number": "V-2026-000002",
+      "hash": "f038b50a67e69714f3d00b4e2e0da9ccd12892031c79912e6872d750795d77ef"
+    },
+    {
+      "id": 3,
+      "number": "V-2026-000003",
+      "hash": "698d1d4603f5034c2b3f1a8b95d45546e60970a7d7e52995d2c07c8084ea5d63"
+    },
+    {
+      "id": 4,
+      "number": "V-2026-000004",
+      "hash": "aa0d4e8e8e37555edb1fe2157c755c22247f59727a919325ee55c38e46187ca8"
+    },
+    {
+      "id": 5,
+      "number": "V-2026-000005",
+      "hash": "e9f9faa3b74b266c296a1d148f9e1ae1727d9cf7d99395fbe5a1655cbf5551b2"
+    },
+    {
+      "id": 6,
+      "number": "V-2026-000006",
+      "hash": "1b8ed2a7ea837d2e40d48fc9a8a13bb1b18e246b68d9921b1f2f3e7749dce7f5"
+    },
+    {
+      "id": 7,
+      "number": "V-2026-000007",
+      "hash": "28f3f5910c2437d67be69f057f39e7c7e5957d0f8bf76697300be6d769d4afd0"
+    },
+    {
+      "id": 8,
+      "number": "V-2026-000008",
+      "hash": "bc52ded45b2c22fea74ebc0e6cdb81c42c6e668f32657783e754e7fd8feaf82d"
+    },
+    {
+      "id": 9,
+      "number": "V-2026-000009",
+      "hash": "169444ee3562fde90ec92ee9131e274c9cf33626d5fd7e8268e4622a8144e956"
+    },
+    {
+      "id": 10,
+      "number": "V-2026-000010",
+      "hash": "8a0439460e74fe3d6a55eaeb6af812502fd8468707580d9b3a1c636ce08410db"
+    }
+  ],
+  "duplicatePairs": [],
+  "overAllocated": [],
+  "cases": [
+    {
+      "id": "C1-create-before",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 0,
+        "document_source": 0,
+        "expense": 0,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 0,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 0,
+        "document_source": 0,
+        "expense": 1,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 0,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/expenses",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "C2-create-after",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 0,
+        "document_source": 0,
+        "expense": 1,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 0,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 0,
+        "document_source": 0,
+        "expense": 3,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 0,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/expenses",
+          "status": 201
+        },
+        {
+          "url": "/api/expenses",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "C3-empty-response",
+      "harnessPass": true,
+      "verdict": "FAIL: duplicate draft after one submit",
+      "before": {
+        "document": 0,
+        "document_source": 0,
+        "expense": 3,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 0,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 0,
+        "document_source": 0,
+        "expense": 5,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 0,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/expenses",
+          "status": 201
+        },
+        {
+          "url": "/api/expenses",
+          "status": 201
+        }
+      ],
+      "duplicateDrafts": 2
+    },
+    {
+      "id": "U1-upload-before",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 0,
+        "document_source": 0,
+        "expense": 7,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 0,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 1,
+        "document_source": 1,
+        "expense": 8,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 1,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/documents",
+          "status": 201
+        },
+        {
+          "url": "/api/documents/1/triage",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "U2-upload-after",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 1,
+        "document_source": 1,
+        "expense": 8,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 1,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 2,
+        "document_source": 3,
+        "expense": 9,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 2,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/documents",
+          "status": 201
+        },
+        {
+          "url": "/api/documents",
+          "status": 201
+        },
+        {
+          "url": "/api/documents/2/triage",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "U3-triage-before",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 2,
+        "document_source": 3,
+        "expense": 9,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 2,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 3,
+        "document_source": 4,
+        "expense": 10,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 3,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/documents",
+          "status": 201
+        },
+        {
+          "url": "/api/documents/3/triage",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "U4-triage-after",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 3,
+        "document_source": 4,
+        "expense": 10,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 3,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 11,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 4,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/documents",
+          "status": 201
+        },
+        {
+          "url": "/api/documents/4/triage",
+          "status": 201
+        },
+        {
+          "url": "/api/documents/4/triage",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "C5-reload-unknown",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 12,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 4,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 13,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 4,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/expenses",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "C4-held-navigation",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 17,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 8,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 18,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 8,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/expenses",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "B1-create-before",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 18,
+        "voucher": 0,
+        "voucher_line": 0,
+        "reconciliation_match": 0,
+        "approval": 8,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 19,
+        "voucher": 2,
+        "voucher_line": 4,
+        "reconciliation_match": 1,
+        "approval": 9,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/expenses",
+          "status": 201
+        },
+        {
+          "url": "/api/expenses/19/post",
+          "status": 201
+        },
+        {
+          "url": "/api/bank-statements/1/match",
+          "status": 201
+        },
+        {
+          "url": "/api/approvals/9/approve",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "B2-post-after",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 19,
+        "voucher": 2,
+        "voucher_line": 4,
+        "reconciliation_match": 1,
+        "approval": 9,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 20,
+        "voucher": 3,
+        "voucher_line": 6,
+        "reconciliation_match": 1,
+        "approval": 9,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/expenses",
+          "status": 201
+        },
+        {
+          "url": "/api/expenses/20/post",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "B2-recover-open-item",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 20,
+        "voucher": 3,
+        "voucher_line": 6,
+        "reconciliation_match": 1,
+        "approval": 9,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 20,
+        "voucher": 4,
+        "voucher_line": 8,
+        "reconciliation_match": 2,
+        "approval": 10,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/bank-statements/1/match",
+          "status": 201
+        },
+        {
+          "url": "/api/approvals/10/approve",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "B3-match-after",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 20,
+        "voucher": 4,
+        "voucher_line": 8,
+        "reconciliation_match": 2,
+        "approval": 10,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 21,
+        "voucher": 6,
+        "voucher_line": 12,
+        "reconciliation_match": 3,
+        "approval": 11,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/expenses",
+          "status": 201
+        },
+        {
+          "url": "/api/expenses/21/post",
+          "status": 201
+        },
+        {
+          "url": "/api/bank-statements/1/match",
+          "status": 201
+        },
+        {
+          "url": "/api/approvals/11/approve",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "B4-approve-after",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 21,
+        "voucher": 6,
+        "voucher_line": 12,
+        "reconciliation_match": 3,
+        "approval": 11,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 22,
+        "voucher": 8,
+        "voucher_line": 16,
+        "reconciliation_match": 4,
+        "approval": 12,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/expenses",
+          "status": 201
+        },
+        {
+          "url": "/api/expenses/22/post",
+          "status": 201
+        },
+        {
+          "url": "/api/bank-statements/1/match",
+          "status": 201
+        },
+        {
+          "url": "/api/approvals/12/approve",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "C6-offline-before",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 22,
+        "voucher": 8,
+        "voucher_line": 16,
+        "reconciliation_match": 4,
+        "approval": 12,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 23,
+        "voucher": 8,
+        "voucher_line": 16,
+        "reconciliation_match": 4,
+        "approval": 12,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/expenses",
+          "status": 201
+        }
+      ]
+    },
+    {
+      "id": "C7-bare-fetch-empty-response",
+      "harnessPass": true,
+      "verdict": "FAIL: duplicate draft from browser transport retry",
+      "before": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 23,
+        "voucher": 8,
+        "voucher_line": 16,
+        "reconciliation_match": 4,
+        "approval": 12,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 25,
+        "voucher": 8,
+        "voucher_line": 16,
+        "reconciliation_match": 4,
+        "approval": 12,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/expenses",
+          "status": 201
+        },
+        {
+          "url": "/api/expenses",
+          "status": 201
+        }
+      ],
+      "duplicateDrafts": 2
+    },
+    {
+      "id": "L1-lifecycle-probe",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 25,
+        "voucher": 8,
+        "voucher_line": 16,
+        "reconciliation_match": 4,
+        "approval": 12,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 25,
+        "voucher": 8,
+        "voucher_line": 16,
+        "reconciliation_match": 4,
+        "approval": 12,
+        "audit_log": 0
+      },
+      "mutations": []
+    },
+    {
+      "id": "B5-match-before",
+      "harnessPass": true,
+      "verdict": "PASS",
+      "before": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 25,
+        "voucher": 8,
+        "voucher_line": 16,
+        "reconciliation_match": 4,
+        "approval": 12,
+        "audit_log": 0
+      },
+      "after": {
+        "document": 4,
+        "document_source": 5,
+        "expense": 26,
+        "voucher": 10,
+        "voucher_line": 20,
+        "reconciliation_match": 5,
+        "approval": 13,
+        "audit_log": 0
+      },
+      "mutations": [
+        {
+          "url": "/api/expenses",
+          "status": 201
+        },
+        {
+          "url": "/api/expenses/26/post",
+          "status": 201
+        },
+        {
+          "url": "/api/bank-statements/1/match",
+          "status": 201
+        },
+        {
+          "url": "/api/approvals/13/approve",
+          "status": 201
+        }
+      ]
+    }
+  ]
+}
