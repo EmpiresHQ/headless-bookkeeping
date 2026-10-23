@@ -196,8 +196,8 @@
     },
     {
       "path": "docs/qa/issue-299/pop-restoration-tests.log",
-      "bytes": 7904,
-      "sha256": "3977887054c2405b004a71bc6fd9d46da80b63bb037ed5ba66fc36691a14cb10"
+      "bytes": 7903,
+      "sha256": "0a92b173fcc21dcfb84f2317bf5c35ec82e40b18ee282e7a4fd08b7e9e3ad384"
     },
     {
       "path": "docs/qa/issue-299/proxy.cjs",
@@ -211,8 +211,8 @@
     },
     {
       "path": "docs/qa/issue-299/targeted-tests.log",
-      "bytes": 1206,
-      "sha256": "fb2c9c907ff0e01d82c46035e6b8c8d70bdc9da8f38da5248462ea0479aea0db"
+      "bytes": 1205,
+      "sha256": "5f9279db733d51a6f9e81d0ad8bd2b095d38eb2d4c1897d1b9afb1f757caf37a"
     },
     {
       "path": "docs/qa/issue-299/web-build.log",
