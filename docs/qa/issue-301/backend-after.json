@@ -1,0 +1,97 @@
+{
+  "synthetic": true,
+  "counts": {
+    "entity": 3,
+    "expense": 2,
+    "voucher": 2,
+    "vat_report": 3,
+    "statutory_filing_snapshot": 3,
+    "statutory_submission_event": 3,
+    "mailbox_connector": 2,
+    "document": 0
+  },
+  "periods": [
+    {
+      "id": 1,
+      "name": "2024-Q1",
+      "status": "locked",
+      "vat_report_snapshot_id": 1,
+      "filed_at": 1792751051
+    },
+    {
+      "id": 2,
+      "name": "2026-08",
+      "status": "locked",
+      "vat_report_snapshot_id": 2,
+      "filed_at": 1792751054
+    },
+    {
+      "id": 3,
+      "name": "2026-09",
+      "status": "locked",
+      "vat_report_snapshot_id": 3,
+      "filed_at": 1792751061
+    }
+  ],
+  "expenses": [
+    {
+      "id": 1,
+      "status": "posted",
+      "supplier_invoice_number": "SYNTHETIC301-2026-08-INV-001",
+      "voucher_id": 1,
+      "gross_amount": 248000,
+      "vat_amount": 48000
+    },
+    {
+      "id": 2,
+      "status": "posted",
+      "supplier_invoice_number": "SYNTHETIC301-2026-09-INV-001",
+      "voucher_id": 2,
+      "gross_amount": 372000,
+      "vat_amount": 72000
+    }
+  ],
+  "settings": [],
+  "mailboxes": [
+    {
+      "id": 1,
+      "channel": "email_sync",
+      "provider": "imap",
+      "host": "127.0.0.1",
+      "port": 14301,
+      "status": "connected",
+      "last_synced_at": 1792750902,
+      "last_error": null
+    },
+    {
+      "id": 2,
+      "channel": "email_sync",
+      "provider": "imap",
+      "host": "127.0.0.1",
+      "port": 14301,
+      "status": "connected",
+      "last_synced_at": 1792750928,
+      "last_error": null
+    }
+  ],
+  "tokenMetadata": [
+    {
+      "kind": "enrollment",
+      "count": 11,
+      "revoked": 0
+    },
+    {
+      "kind": "session",
+      "count": 9,
+      "revoked": 9
+    },
+    {
+      "kind": "static",
+      "count": 2,
+      "revoked": 0
+    }
+  ],
+  "foreignKeyCheck": [],
+  "base": "eb92556f578f410ad5eed4be0a79d879e6a0b164",
+  "indexSha256": "8964d03fe3262e31c4cd54d2d70a03c2dccf140c60022cf8abf277b6169d63dc"
+}

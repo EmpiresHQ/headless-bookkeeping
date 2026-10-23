@@ -1,0 +1,3 @@
+# Downloaded artifact bytes must survive checkout unchanged.
+*.csv binary
+*.xml -text

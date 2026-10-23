@@ -1,0 +1,708 @@
+{
+  "synthetic": true,
+  "started": "2026-10-23T10:21:15.240Z",
+  "node": "v24.21.0",
+  "cases": [
+    {
+      "name": "reports",
+      "width": 320,
+      "height": 844,
+      "started": "2026-10-23T10:21:15.883Z",
+      "ok": false,
+      "error": "locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /Close period/ })\u001b[22m\n\n    at /root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:21:135\n    at async run (/root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:16:189)\n    at async /root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:18:3",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods?kind=vat"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/kmd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/expenses?include_cancelled=1"
+        },
+        {
+          "method": "GET",
+          "path": "/api/entities"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/sales-invoices"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/kmd"
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/expenses/1/document-metadata"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/kmd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods?kind=vat"
+        },
+        {
+          "method": "GET",
+          "path": "/api/expenses?include_cancelled=1"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/statutory-report?format=xml"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/statutory-report?format=csv"
+        }
+      ],
+      "httpErrors": [],
+      "pageErrors": []
+    },
+    {
+      "name": "organization-counterparty",
+      "width": 320,
+      "height": 844,
+      "started": "2026-10-23T10:21:33.975Z",
+      "details": {
+        "organizationSave": {
+          "width": 260,
+          "height": 42.5,
+          "x": 30,
+          "y": 652,
+          "bottom": 694.5,
+          "inViewport": true,
+          "centerHit": true,
+          "pageOverflow": false
+        },
+        "entityButton": {
+          "width": 272,
+          "height": 42.5,
+          "x": 24,
+          "y": 777.03125,
+          "bottom": 819.53125,
+          "inViewport": true,
+          "centerHit": true,
+          "pageOverflow": false
+        },
+        "entityId": 2,
+        "entity": {
+          "id": 2,
+          "role": "supplier",
+          "country": "EE",
+          "name": "SYNTHETIC QA301 Counterparty 320",
+          "goods_vs_services": "services",
+          "tax_status": "taxable_business",
+          "created_at": 1792750895,
+          "updated_at": 1792750895,
+          "identifiers": [
+            {
+              "id": 2,
+              "entity_id": 2,
+              "kind": "registration_key",
+              "value": "SYNTHETIC301-320-REG",
+              "confirmed": true
+            }
+          ]
+        }
+      },
+      "ok": true,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/api/organization"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/organization"
+        },
+        {
+          "method": "GET",
+          "path": "/api/organization"
+        },
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/api/organization"
+        },
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/api/entities"
+        },
+        {
+          "method": "POST",
+          "path": "/api/entities"
+        },
+        {
+          "method": "GET",
+          "path": "/api/entities"
+        },
+        {
+          "method": "GET",
+          "path": "/api/entities/2"
+        },
+        {
+          "method": "GET",
+          "path": "/api/expenses?include_cancelled=1"
+        },
+        {
+          "method": "GET",
+          "path": "/api/sales-invoices"
+        }
+      ],
+      "httpErrors": [],
+      "pageErrors": []
+    },
+    {
+      "name": "settings-device",
+      "width": 320,
+      "height": 844,
+      "started": "2026-10-23T10:21:35.878Z",
+      "ok": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n200 !== 404\n\n    at /root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:32:280\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async run (/root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:16:189)\n    at async /root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:29:3",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "PUT",
+          "path": "/admin/settings/public_api_url"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "DELETE",
+          "path": "/admin/settings/public_api_url"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        }
+      ],
+      "httpErrors": [
+        {
+          "status": 500,
+          "path": "/api/device-enrollments"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "mailbox",
+      "width": 320,
+      "height": 844,
+      "started": "2026-10-23T10:21:39.684Z",
+      "details": {
+        "fakeExternalService": "empty TLS IMAP on127.0.0.1:14301 with own trusted self-signed test CA",
+        "oauthAvailable": false,
+        "providerOAuthRoundTrip": false,
+        "button": {
+          "width": 283,
+          "height": 42.5,
+          "x": 24,
+          "y": 794.53125,
+          "bottom": 837.03125,
+          "inViewport": true,
+          "centerHit": true,
+          "pageOverflow": false
+        },
+        "connectorId": 1,
+        "status": "connected",
+        "lastSyncedAt": 1792750902,
+        "lastError": null,
+        "realMailboxConnected": false
+      },
+      "ok": true,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/mailbox/connectors"
+        },
+        {
+          "method": "GET",
+          "path": "/api/mailbox/oauth/start?provider=gmail&channel=email_sync"
+        },
+        {
+          "method": "POST",
+          "path": "/api/mailbox/connectors"
+        },
+        {
+          "method": "GET",
+          "path": "/api/mailbox/connectors"
+        },
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "POST",
+          "path": "/api/mailbox/connectors/1/sync"
+        },
+        {
+          "method": "GET",
+          "path": "/api/mailbox/connectors"
+        },
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        }
+      ],
+      "httpErrors": [
+        {
+          "status": 400,
+          "path": "/api/mailbox/oauth/start"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "reports",
+      "width": 390,
+      "height": 844,
+      "started": "2026-10-23T10:21:42.489Z",
+      "ok": false,
+      "error": "locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /Close period/ })\u001b[22m\n\n    at /root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:21:135\n    at async run (/root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:16:189)\n    at async /root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:18:3",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods?kind=vat"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/kmd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/expenses?include_cancelled=1"
+        },
+        {
+          "method": "GET",
+          "path": "/api/entities"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/sales-invoices"
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/expenses/2/document-metadata"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/kmd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods?kind=vat"
+        },
+        {
+          "method": "GET",
+          "path": "/api/expenses?include_cancelled=1"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/statutory-report?format=xml"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/statutory-report?format=csv"
+        }
+      ],
+      "httpErrors": [],
+      "pageErrors": []
+    },
+    {
+      "name": "organization-counterparty",
+      "width": 390,
+      "height": 844,
+      "started": "2026-10-23T10:22:00.427Z",
+      "details": {
+        "organizationSave": {
+          "width": 330,
+          "height": 42.5,
+          "x": 30,
+          "y": 652.25,
+          "bottom": 694.75,
+          "inViewport": true,
+          "centerHit": true,
+          "pageOverflow": false
+        },
+        "entityButton": {
+          "width": 342,
+          "height": 42.5,
+          "x": 24,
+          "y": 777.03125,
+          "bottom": 819.53125,
+          "inViewport": true,
+          "centerHit": true,
+          "pageOverflow": false
+        },
+        "entityId": 3,
+        "entity": {
+          "id": 3,
+          "role": "supplier",
+          "country": "EE",
+          "name": "SYNTHETIC QA301 Counterparty 390",
+          "goods_vs_services": "services",
+          "tax_status": "taxable_business",
+          "created_at": 1792750922,
+          "updated_at": 1792750922,
+          "identifiers": [
+            {
+              "id": 3,
+              "entity_id": 3,
+              "kind": "registration_key",
+              "value": "SYNTHETIC301-390-REG",
+              "confirmed": true
+            }
+          ]
+        }
+      },
+      "ok": true,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/api/organization"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/organization"
+        },
+        {
+          "method": "GET",
+          "path": "/api/organization"
+        },
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/api/organization"
+        },
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/api/entities"
+        },
+        {
+          "method": "POST",
+          "path": "/api/entities"
+        },
+        {
+          "method": "GET",
+          "path": "/api/entities"
+        },
+        {
+          "method": "GET",
+          "path": "/api/entities/3"
+        },
+        {
+          "method": "GET",
+          "path": "/api/expenses?include_cancelled=1"
+        },
+        {
+          "method": "GET",
+          "path": "/api/sales-invoices"
+        }
+      ],
+      "httpErrors": [],
+      "pageErrors": []
+    },
+    {
+      "name": "settings-device",
+      "width": 390,
+      "height": 844,
+      "started": "2026-10-23T10:22:02.317Z",
+      "ok": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n200 !== 404\n\n    at /root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:32:280\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async run (/root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:16:189)\n    at async /root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:29:3",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "PUT",
+          "path": "/admin/settings/public_api_url"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "DELETE",
+          "path": "/admin/settings/public_api_url"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        }
+      ],
+      "httpErrors": [
+        {
+          "status": 500,
+          "path": "/api/device-enrollments"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "mailbox",
+      "width": 390,
+      "height": 844,
+      "started": "2026-10-23T10:22:05.868Z",
+      "details": {
+        "fakeExternalService": "empty TLS IMAP on127.0.0.1:14301 with own trusted self-signed test CA",
+        "oauthAvailable": false,
+        "providerOAuthRoundTrip": false,
+        "button": {
+          "width": 342,
+          "height": 42.5,
+          "x": 24,
+          "y": 764.53125,
+          "bottom": 807.03125,
+          "inViewport": true,
+          "centerHit": true,
+          "pageOverflow": false
+        },
+        "connectorId": 2,
+        "status": "connected",
+        "lastSyncedAt": 1792750928,
+        "lastError": null,
+        "realMailboxConnected": false
+      },
+      "ok": true,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/mailbox/connectors"
+        },
+        {
+          "method": "GET",
+          "path": "/api/mailbox/oauth/start?provider=gmail&channel=email_sync"
+        },
+        {
+          "method": "POST",
+          "path": "/api/mailbox/connectors"
+        },
+        {
+          "method": "GET",
+          "path": "/api/mailbox/connectors"
+        },
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "POST",
+          "path": "/api/mailbox/connectors/2/sync"
+        },
+        {
+          "method": "GET",
+          "path": "/api/mailbox/connectors"
+        },
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        }
+      ],
+      "httpErrors": [
+        {
+          "status": 400,
+          "path": "/api/mailbox/oauth/start"
+        }
+      ],
+      "pageErrors": []
+    }
+  ],
+  "browser": "153.0.8010.12",
+  "events320": {
+    "pageErrors": [],
+    "httpErrors": [
+      {
+        "status": 500,
+        "path": "/api/device-enrollments"
+      },
+      {
+        "status": 400,
+        "path": "/api/mailbox/oauth/start"
+      }
+    ],
+    "externalBlocked": []
+  },
+  "events390": {
+    "pageErrors": [],
+    "httpErrors": [
+      {
+        "status": 500,
+        "path": "/api/device-enrollments"
+      },
+      {
+        "status": 400,
+        "path": "/api/mailbox/oauth/start"
+      }
+    ],
+    "externalBlocked": []
+  }
+}
