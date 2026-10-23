@@ -1,0 +1,1339 @@
+[
+  {
+    "id": "396",
+    "role": "RootWebArea",
+    "name": "Bookkeeping",
+    "properties": {
+      "focusable": true,
+      "focused": true,
+      "url": "http://127.0.0.1:5302/inbox?q=SYNTHETIC"
+    },
+    "children": [
+      "411"
+    ]
+  },
+  {
+    "id": "449",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "397",
+      "583"
+    ]
+  },
+  {
+    "id": "450",
+    "role": "complementary",
+    "name": "",
+    "properties": {},
+    "children": [
+      "451",
+      "459",
+      "487"
+    ]
+  },
+  {
+    "id": "488",
+    "role": "main",
+    "name": "",
+    "properties": {},
+    "children": [
+      "489"
+    ]
+  },
+  {
+    "id": "583",
+    "role": "region",
+    "name": "Notifications alt+T",
+    "properties": {
+      "live": "polite",
+      "atomic": false,
+      "relevant": "additions text",
+      "focusable": true
+    },
+    "children": []
+  },
+  {
+    "id": "584",
+    "role": "StaticText",
+    "name": "books",
+    "properties": {},
+    "children": [
+      "-1000000072"
+    ]
+  },
+  {
+    "id": "459",
+    "role": "navigation",
+    "name": "Primary",
+    "properties": {},
+    "children": [
+      "460",
+      "465",
+      "469",
+      "477",
+      "483"
+    ]
+  },
+  {
+    "id": "487",
+    "role": "button",
+    "name": "Sign out",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "591"
+    ]
+  },
+  {
+    "id": "489",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "490",
+      "496",
+      "515",
+      "405",
+      "398",
+      "399",
+      "403"
+    ]
+  },
+  {
+    "id": "-1000000072",
+    "role": "InlineTextBox",
+    "name": "books",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "460",
+    "role": "link",
+    "name": "Inbox 2",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/inbox"
+    },
+    "children": [
+      "585",
+      "464"
+    ]
+  },
+  {
+    "id": "465",
+    "role": "link",
+    "name": "Books",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/books"
+    },
+    "children": [
+      "587"
+    ]
+  },
+  {
+    "id": "469",
+    "role": "link",
+    "name": "Bank",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/bank"
+    },
+    "children": [
+      "588"
+    ]
+  },
+  {
+    "id": "477",
+    "role": "link",
+    "name": "Reports",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/reports"
+    },
+    "children": [
+      "589"
+    ]
+  },
+  {
+    "id": "483",
+    "role": "link",
+    "name": "Settings",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/settings"
+    },
+    "children": [
+      "590"
+    ]
+  },
+  {
+    "id": "591",
+    "role": "StaticText",
+    "name": "Sign out",
+    "properties": {},
+    "children": [
+      "-1000000079"
+    ]
+  },
+  {
+    "id": "491",
+    "role": "heading",
+    "name": "Inbox",
+    "properties": {
+      "level": 1
+    },
+    "children": [
+      "592"
+    ]
+  },
+  {
+    "id": "593",
+    "role": "StaticText",
+    "name": "2 tasks",
+    "properties": {},
+    "children": [
+      "-1000000081"
+    ]
+  },
+  {
+    "id": "495",
+    "role": "button",
+    "name": "Upload",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "594"
+    ]
+  },
+  {
+    "id": "497",
+    "role": "radiogroup",
+    "name": "Inbox filter",
+    "properties": {
+      "required": false
+    },
+    "children": [
+      "498",
+      "501",
+      "504"
+    ]
+  },
+  {
+    "id": "404",
+    "role": "searchbox",
+    "name": "Search the Inbox",
+    "value": "SYNTHETIC",
+    "description": "Matches documents by file name or arrival date; expense and sales-invoice approvals by supplier or customer, invoice number or amount; any approval by title or arrival date. Results open one at a time, outside the queue.",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "focused": true,
+      "editable": "plaintext",
+      "settable": true,
+      "describedby": ":r4:"
+    },
+    "children": [
+      "509",
+      "510"
+    ]
+  },
+  {
+    "id": "514",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "600",
+      "601",
+      "602"
+    ]
+  },
+  {
+    "id": "515",
+    "role": "group",
+    "name": "Active filters",
+    "properties": {},
+    "children": [
+      "516",
+      "519"
+    ]
+  },
+  {
+    "id": "406",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "608",
+      "609"
+    ]
+  },
+  {
+    "id": "521",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "610"
+    ]
+  },
+  {
+    "id": "407",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "611"
+    ]
+  },
+  {
+    "id": "522",
+    "role": "link",
+    "name": "Start clearing · 2",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/inbox/doc/1"
+    },
+    "children": [
+      "612",
+      "613"
+    ]
+  },
+  {
+    "id": "523",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "614",
+      "615",
+      "616"
+    ]
+  },
+  {
+    "id": "524",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "617"
+    ]
+  },
+  {
+    "id": "526",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "527",
+      "530"
+    ]
+  },
+  {
+    "id": "540",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "623"
+    ]
+  },
+  {
+    "id": "542",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "543",
+      "545"
+    ]
+  },
+  {
+    "id": "403",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "632"
+    ]
+  },
+  {
+    "id": "585",
+    "role": "StaticText",
+    "name": "Inbox",
+    "properties": {},
+    "children": [
+      "-1000000073"
+    ]
+  },
+  {
+    "id": "586",
+    "role": "StaticText",
+    "name": "2",
+    "properties": {},
+    "children": [
+      "-1000000074"
+    ]
+  },
+  {
+    "id": "587",
+    "role": "StaticText",
+    "name": "Books",
+    "properties": {},
+    "children": [
+      "-1000000075"
+    ]
+  },
+  {
+    "id": "588",
+    "role": "StaticText",
+    "name": "Bank",
+    "properties": {},
+    "children": [
+      "-1000000076"
+    ]
+  },
+  {
+    "id": "589",
+    "role": "StaticText",
+    "name": "Reports",
+    "properties": {},
+    "children": [
+      "-1000000077"
+    ]
+  },
+  {
+    "id": "590",
+    "role": "StaticText",
+    "name": "Settings",
+    "properties": {},
+    "children": [
+      "-1000000078"
+    ]
+  },
+  {
+    "id": "-1000000079",
+    "role": "InlineTextBox",
+    "name": "Sign out",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "592",
+    "role": "StaticText",
+    "name": "Inbox",
+    "properties": {},
+    "children": [
+      "-1000000080"
+    ]
+  },
+  {
+    "id": "-1000000081",
+    "role": "InlineTextBox",
+    "name": "2 tasks",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "594",
+    "role": "StaticText",
+    "name": "Upload",
+    "properties": {},
+    "children": [
+      "-1000000082"
+    ]
+  },
+  {
+    "id": "498",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "499",
+      "500"
+    ]
+  },
+  {
+    "id": "501",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "502",
+      "503"
+    ]
+  },
+  {
+    "id": "504",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "505",
+      "506"
+    ]
+  },
+  {
+    "id": "512",
+    "role": "generic",
+    "name": "",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "599"
+    ]
+  },
+  {
+    "id": "600",
+    "role": "StaticText",
+    "name": "Matches ",
+    "properties": {},
+    "children": [
+      "-1000000087"
+    ]
+  },
+  {
+    "id": "601",
+    "role": "StaticText",
+    "name": "documents by file name or arrival date; expense and sales-invoice approvals by supplier or customer, invoice number or amount; any approval by title or arrival date",
+    "properties": {},
+    "children": [
+      "-1000000088"
+    ]
+  },
+  {
+    "id": "602",
+    "role": "StaticText",
+    "name": ". Results open one at a time, outside the queue.",
+    "properties": {},
+    "children": [
+      "-1000000089"
+    ]
+  },
+  {
+    "id": "516",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "603",
+      "604",
+      "518",
+      "409"
+    ]
+  },
+  {
+    "id": "519",
+    "role": "button",
+    "name": "Clear search",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "520"
+    ]
+  },
+  {
+    "id": "608",
+    "role": "StaticText",
+    "name": "2024-Q1",
+    "properties": {},
+    "children": [
+      "-1000000099"
+    ]
+  },
+  {
+    "id": "609",
+    "role": "StaticText",
+    "name": " · OPEN",
+    "properties": {},
+    "children": [
+      "-1000000100"
+    ]
+  },
+  {
+    "id": "610",
+    "role": "StaticText",
+    "name": "0.00 €",
+    "properties": {},
+    "children": [
+      "-1000000101"
+    ]
+  },
+  {
+    "id": "611",
+    "role": "StaticText",
+    "name": "expenses this period",
+    "properties": {},
+    "children": [
+      "-1000000102"
+    ]
+  },
+  {
+    "id": "612",
+    "role": "StaticText",
+    "name": "Start clearing · ",
+    "properties": {},
+    "children": [
+      "-1000000103"
+    ]
+  },
+  {
+    "id": "613",
+    "role": "StaticText",
+    "name": "2",
+    "properties": {},
+    "children": [
+      "-1000000104"
+    ]
+  },
+  {
+    "id": "614",
+    "role": "StaticText",
+    "name": "Whole ",
+    "properties": {},
+    "children": [
+      "-1000000105"
+    ]
+  },
+  {
+    "id": "615",
+    "role": "StaticText",
+    "name": "Inbox",
+    "properties": {},
+    "children": [
+      "-1000000106"
+    ]
+  },
+  {
+    "id": "616",
+    "role": "StaticText",
+    "name": " queue — ignores the search",
+    "properties": {},
+    "children": [
+      "-1000000107"
+    ]
+  },
+  {
+    "id": "617",
+    "role": "StaticText",
+    "name": "EARLIER · 1",
+    "properties": {},
+    "children": [
+      "-1000000108"
+    ]
+  },
+  {
+    "id": "528",
+    "role": "button",
+    "name": "Open document preview",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "529"
+    ]
+  },
+  {
+    "id": "530",
+    "role": "link",
+    "name": "SYNTHETIC302-source.png SYNTHETIC302 manual classification required review 1d ago",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/inbox/doc/1"
+    },
+    "children": [
+      "531"
+    ]
+  },
+  {
+    "id": "623",
+    "role": "StaticText",
+    "name": "TODAY · 1",
+    "properties": {},
+    "children": [
+      "-1000000113"
+    ]
+  },
+  {
+    "id": "545",
+    "role": "link",
+    "name": "SYNTHETIC302 Supplier Auto-posting is disabled — all postings require manual confirmation approve? −234.56 € 6m ago",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/inbox/approval/2"
+    },
+    "children": [
+      "546"
+    ]
+  },
+  {
+    "id": "632",
+    "role": "StaticText",
+    "name": "Oldest first — the queue clears FIFO",
+    "properties": {},
+    "children": [
+      "-1000000121"
+    ]
+  },
+  {
+    "id": "-1000000073",
+    "role": "InlineTextBox",
+    "name": "Inbox",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000074",
+    "role": "InlineTextBox",
+    "name": "2",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000075",
+    "role": "InlineTextBox",
+    "name": "Books",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000076",
+    "role": "InlineTextBox",
+    "name": "Bank",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000077",
+    "role": "InlineTextBox",
+    "name": "Reports",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000078",
+    "role": "InlineTextBox",
+    "name": "Settings",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000080",
+    "role": "InlineTextBox",
+    "name": "Inbox",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000082",
+    "role": "InlineTextBox",
+    "name": "Upload",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "499",
+    "role": "radio",
+    "name": "All",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "checked": "true"
+    },
+    "children": []
+  },
+  {
+    "id": "595",
+    "role": "StaticText",
+    "name": "All",
+    "properties": {},
+    "children": [
+      "-1000000083"
+    ]
+  },
+  {
+    "id": "502",
+    "role": "radio",
+    "name": "Triage 1",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "checked": "false"
+    },
+    "children": []
+  },
+  {
+    "id": "596",
+    "role": "StaticText",
+    "name": "Triage 1",
+    "properties": {},
+    "children": [
+      "-1000000084"
+    ]
+  },
+  {
+    "id": "505",
+    "role": "radio",
+    "name": "Approvals 1",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "checked": "false"
+    },
+    "children": []
+  },
+  {
+    "id": "597",
+    "role": "StaticText",
+    "name": "Approvals 1",
+    "properties": {},
+    "children": [
+      "-1000000085"
+    ]
+  },
+  {
+    "id": "599",
+    "role": "StaticText",
+    "name": "SYNTHETIC",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "-1000000086"
+    ]
+  },
+  {
+    "id": "-1000000087",
+    "role": "InlineTextBox",
+    "name": "Matches ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000088",
+    "role": "InlineTextBox",
+    "name": "documents by file name or arrival date; expense and sales-invoice approvals by supplier or customer, invoice number or amount; any approval by title or arrival date",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000089",
+    "role": "InlineTextBox",
+    "name": ". Results open one at a time, outside the queue.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "603",
+    "role": "StaticText",
+    "name": "Showing 2 of 2 tasks",
+    "properties": {},
+    "children": [
+      "-1000000090"
+    ]
+  },
+  {
+    "id": "604",
+    "role": "StaticText",
+    "name": " · ",
+    "properties": {},
+    "children": [
+      "-1000000091"
+    ]
+  },
+  {
+    "id": "518",
+    "role": "generic",
+    "name": "",
+    "description": "SYNTHETIC",
+    "properties": {},
+    "children": [
+      "605",
+      "606",
+      "408"
+    ]
+  },
+  {
+    "id": "409",
+    "role": "StaticText",
+    "name": " in documents by file name or arrival date; expense and sales-invoice approvals by supplier or customer, invoice number or amount; any approval by title or arrival date",
+    "properties": {},
+    "children": [
+      "-1000000095",
+      "-1000000096",
+      "-1000000097"
+    ]
+  },
+  {
+    "id": "607",
+    "role": "StaticText",
+    "name": "Clear",
+    "properties": {},
+    "children": [
+      "-1000000098"
+    ]
+  },
+  {
+    "id": "-1000000099",
+    "role": "InlineTextBox",
+    "name": "2024-Q1",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000100",
+    "role": "InlineTextBox",
+    "name": " · OPEN",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000101",
+    "role": "InlineTextBox",
+    "name": "0.00 €",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000102",
+    "role": "InlineTextBox",
+    "name": "expenses this period",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000103",
+    "role": "InlineTextBox",
+    "name": "Start clearing · ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000104",
+    "role": "InlineTextBox",
+    "name": "2",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000105",
+    "role": "InlineTextBox",
+    "name": "Whole ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000106",
+    "role": "InlineTextBox",
+    "name": "Inbox",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000107",
+    "role": "InlineTextBox",
+    "name": " queue — ignores the search",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000108",
+    "role": "InlineTextBox",
+    "name": "EARLIER · 1",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "533",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "618"
+    ]
+  },
+  {
+    "id": "534",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "619"
+    ]
+  },
+  {
+    "id": "535",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "620"
+    ]
+  },
+  {
+    "id": "538",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "621"
+    ]
+  },
+  {
+    "id": "-1000000113",
+    "role": "InlineTextBox",
+    "name": "TODAY · 1",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "548",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "625"
+    ]
+  },
+  {
+    "id": "549",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "626"
+    ]
+  },
+  {
+    "id": "550",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "627"
+    ]
+  },
+  {
+    "id": "628",
+    "role": "StaticText",
+    "name": "−234.56",
+    "properties": {},
+    "children": [
+      "-1000000117"
+    ]
+  },
+  {
+    "id": "629",
+    "role": "StaticText",
+    "name": " ",
+    "properties": {},
+    "children": [
+      "-1000000118"
+    ]
+  },
+  {
+    "id": "630",
+    "role": "StaticText",
+    "name": "€",
+    "properties": {},
+    "children": [
+      "-1000000119"
+    ]
+  },
+  {
+    "id": "401",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "402"
+    ]
+  },
+  {
+    "id": "-1000000121",
+    "role": "InlineTextBox",
+    "name": "Oldest first — the queue clears FIFO",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000083",
+    "role": "InlineTextBox",
+    "name": "All",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000084",
+    "role": "InlineTextBox",
+    "name": "Triage 1",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000085",
+    "role": "InlineTextBox",
+    "name": "Approvals 1",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000086",
+    "role": "InlineTextBox",
+    "name": "SYNTHETIC",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": []
+  },
+  {
+    "id": "-1000000090",
+    "role": "InlineTextBox",
+    "name": "Showing 2 of 2 tasks",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000091",
+    "role": "InlineTextBox",
+    "name": " · ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "605",
+    "role": "StaticText",
+    "name": "Search “",
+    "properties": {},
+    "children": [
+      "-1000000092"
+    ]
+  },
+  {
+    "id": "606",
+    "role": "StaticText",
+    "name": "SYNTHETIC",
+    "properties": {},
+    "children": [
+      "-1000000093"
+    ]
+  },
+  {
+    "id": "408",
+    "role": "StaticText",
+    "name": "”",
+    "properties": {},
+    "children": [
+      "-1000000094"
+    ]
+  },
+  {
+    "id": "-1000000095",
+    "role": "InlineTextBox",
+    "name": " in documents by file name or arrival date; expense ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000096",
+    "role": "InlineTextBox",
+    "name": "and sales-invoice approvals by supplier or customer, invoice number or amount; any approval by ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000097",
+    "role": "InlineTextBox",
+    "name": "title or arrival date",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000098",
+    "role": "InlineTextBox",
+    "name": "Clear",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "618",
+    "role": "StaticText",
+    "name": "SYNTHETIC302-source.png",
+    "properties": {},
+    "children": [
+      "-1000000109"
+    ]
+  },
+  {
+    "id": "619",
+    "role": "StaticText",
+    "name": "SYNTHETIC302 manual classification required",
+    "properties": {},
+    "children": [
+      "-1000000110"
+    ]
+  },
+  {
+    "id": "620",
+    "role": "StaticText",
+    "name": "review",
+    "properties": {},
+    "children": [
+      "-1000000111"
+    ]
+  },
+  {
+    "id": "621",
+    "role": "StaticText",
+    "name": "1d ago",
+    "properties": {},
+    "children": [
+      "-1000000112"
+    ]
+  },
+  {
+    "id": "625",
+    "role": "StaticText",
+    "name": "SYNTHETIC302 Supplier",
+    "properties": {},
+    "children": [
+      "-1000000114"
+    ]
+  },
+  {
+    "id": "626",
+    "role": "StaticText",
+    "name": "Auto-posting is disabled — all postings require manual confirmation",
+    "properties": {},
+    "children": [
+      "-1000000115"
+    ]
+  },
+  {
+    "id": "627",
+    "role": "StaticText",
+    "name": "approve?",
+    "properties": {},
+    "children": [
+      "-1000000116"
+    ]
+  },
+  {
+    "id": "-1000000117",
+    "role": "InlineTextBox",
+    "name": "−234.56",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000118",
+    "role": "InlineTextBox",
+    "name": " ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000119",
+    "role": "InlineTextBox",
+    "name": "€",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "402",
+    "role": "StaticText",
+    "name": "6m ago",
+    "properties": {},
+    "children": [
+      "-1000000120"
+    ]
+  },
+  {
+    "id": "-1000000092",
+    "role": "InlineTextBox",
+    "name": "Search “",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000093",
+    "role": "InlineTextBox",
+    "name": "SYNTHETIC",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000094",
+    "role": "InlineTextBox",
+    "name": "”",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000109",
+    "role": "InlineTextBox",
+    "name": "SYNTHETIC302-source.png",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000110",
+    "role": "InlineTextBox",
+    "name": "SYNTHETIC302 manual classification required",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000111",
+    "role": "InlineTextBox",
+    "name": "review",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000112",
+    "role": "InlineTextBox",
+    "name": "1d ago",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000114",
+    "role": "InlineTextBox",
+    "name": "SYNTHETIC302 Supplier",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000115",
+    "role": "InlineTextBox",
+    "name": "Auto-posting is disabled — all postings require manual confirmation",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000116",
+    "role": "InlineTextBox",
+    "name": "approve?",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000120",
+    "role": "InlineTextBox",
+    "name": "6m ago",
+    "properties": {},
+    "children": []
+  }
+]

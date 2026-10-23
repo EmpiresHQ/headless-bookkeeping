@@ -1,0 +1,28 @@
+{
+  "synthetic": true,
+  "node": "v24.21.0",
+  "documentId": 1,
+  "statementId": 1,
+  "expenses": [
+    {
+      "id": 1,
+      "status": "posted",
+      "grossCents": 10000,
+      "voucherId": 1
+    },
+    {
+      "id": 2,
+      "status": "draft",
+      "grossCents": 12345,
+      "voucherId": null
+    },
+    {
+      "id": 3,
+      "status": "pending",
+      "grossCents": 23456,
+      "voucherId": null
+    }
+  ],
+  "pendingApprovalId": 2,
+  "foreignKeyCheck": []
+}

@@ -1,0 +1,1572 @@
+[
+  {
+    "id": "649",
+    "role": "RootWebArea",
+    "name": "Bookkeeping",
+    "properties": {
+      "focusable": true,
+      "focused": true,
+      "url": "http://127.0.0.1:5302/books/expenses/2"
+    },
+    "children": [
+      "656"
+    ]
+  },
+  {
+    "id": "692",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "694",
+      "819"
+    ]
+  },
+  {
+    "id": "694",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "736",
+      "737",
+      "768",
+      "785",
+      "787",
+      "788",
+      "790",
+      "795",
+      "799",
+      "807",
+      "813",
+      "817"
+    ]
+  },
+  {
+    "id": "819",
+    "role": "dialog",
+    "name": "Edit draft expense",
+    "properties": {
+      "focusable": true,
+      "modal": false
+    },
+    "children": [
+      "820",
+      "821",
+      "825",
+      "826"
+    ]
+  },
+  {
+    "id": "817",
+    "role": "region",
+    "name": "Notifications alt+T",
+    "properties": {
+      "live": "polite",
+      "atomic": false,
+      "relevant": "additions text",
+      "focusable": true
+    },
+    "children": []
+  },
+  {
+    "id": "821",
+    "role": "button",
+    "name": "Close",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": []
+  },
+  {
+    "id": "825",
+    "role": "heading",
+    "name": "Edit draft expense",
+    "properties": {
+      "level": 2
+    },
+    "children": [
+      "1044"
+    ]
+  },
+  {
+    "id": "826",
+    "role": "generic",
+    "name": "The source document, the AI reading and the approval history stay attached and cannot be edited here. This is a separate purchase — save anyway (recorded in the audit log) Save draft",
+    "properties": {
+      "focused": true
+    },
+    "children": [
+      "827"
+    ]
+  },
+  {
+    "id": "1044",
+    "role": "StaticText",
+    "name": "Edit draft expense",
+    "properties": {},
+    "children": [
+      "-1000001033"
+    ]
+  },
+  {
+    "id": "828",
+    "role": "group",
+    "name": "",
+    "properties": {
+      "invalid": "false"
+    },
+    "children": [
+      "829",
+      "891",
+      "909",
+      "916",
+      "922",
+      "928",
+      "934",
+      "948",
+      "963"
+    ]
+  },
+  {
+    "id": "995",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1069"
+    ]
+  },
+  {
+    "id": "1109",
+    "role": "alert",
+    "name": "",
+    "properties": {
+      "live": "assertive",
+      "atomic": true,
+      "relevant": "additions text"
+    },
+    "children": [
+      "1104",
+      "1105",
+      "1106"
+    ]
+  },
+  {
+    "id": "1110",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1107",
+      "1108"
+    ]
+  },
+  {
+    "id": "996",
+    "role": "button",
+    "name": "Save draft",
+    "properties": {
+      "disabled": true,
+      "invalid": "false"
+    },
+    "children": [
+      "1070"
+    ]
+  },
+  {
+    "id": "997",
+    "role": "status",
+    "name": "",
+    "properties": {
+      "live": "polite",
+      "atomic": true,
+      "relevant": "additions text"
+    },
+    "children": []
+  },
+  {
+    "id": "-1000001033",
+    "role": "InlineTextBox",
+    "name": "Edit draft expense",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "830",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "831",
+      "833"
+    ]
+  },
+  {
+    "id": "892",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "893",
+      "895"
+    ]
+  },
+  {
+    "id": "908",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1047"
+    ]
+  },
+  {
+    "id": "910",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "911",
+      "913"
+    ]
+  },
+  {
+    "id": "915",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1050"
+    ]
+  },
+  {
+    "id": "917",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "918",
+      "920"
+    ]
+  },
+  {
+    "id": "923",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "924",
+      "926"
+    ]
+  },
+  {
+    "id": "929",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "930",
+      "932"
+    ]
+  },
+  {
+    "id": "935",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "936",
+      "938"
+    ]
+  },
+  {
+    "id": "949",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "950",
+      "952"
+    ]
+  },
+  {
+    "id": "962",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1064"
+    ]
+  },
+  {
+    "id": "966",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "967",
+      "969"
+    ]
+  },
+  {
+    "id": "985",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1066"
+    ]
+  },
+  {
+    "id": "988",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "989",
+      "991"
+    ]
+  },
+  {
+    "id": "994",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1068"
+    ]
+  },
+  {
+    "id": "1069",
+    "role": "StaticText",
+    "name": "The source document, the AI reading and the approval history stay attached and cannot be edited here.",
+    "properties": {},
+    "children": [
+      "-1000001067",
+      "-1000001068",
+      "-1000001069"
+    ]
+  },
+  {
+    "id": "1104",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1115"
+    ]
+  },
+  {
+    "id": "1105",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1116"
+    ]
+  },
+  {
+    "id": "1106",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1117"
+    ]
+  },
+  {
+    "id": "1107",
+    "role": "checkbox",
+    "name": "This is a separate purchase — save anyway (recorded in the audit log)",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "checked": "false"
+    },
+    "children": []
+  },
+  {
+    "id": "1118",
+    "role": "StaticText",
+    "name": "This is a separate purchase — save anyway (recorded in the audit log)",
+    "properties": {},
+    "children": [
+      "-1000001086",
+      "-1000001087",
+      "-1000001088"
+    ]
+  },
+  {
+    "id": "1070",
+    "role": "StaticText",
+    "name": "Save draft",
+    "properties": {},
+    "children": [
+      "-1000001079"
+    ]
+  },
+  {
+    "id": "1045",
+    "role": "StaticText",
+    "name": "Category",
+    "properties": {},
+    "children": [
+      "-1000001034"
+    ]
+  },
+  {
+    "id": "833",
+    "role": "combobox",
+    "name": "Category",
+    "value": "Software",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "hasPopup": "menu",
+      "expanded": false
+    },
+    "children": [
+      "836"
+    ]
+  },
+  {
+    "id": "1046",
+    "role": "StaticText",
+    "name": "Supplier",
+    "properties": {},
+    "children": [
+      "-1000001035"
+    ]
+  },
+  {
+    "id": "895",
+    "role": "combobox",
+    "name": "Supplier",
+    "value": "SYNTHETIC302 Supplier",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "hasPopup": "menu",
+      "expanded": false
+    },
+    "children": [
+      "898"
+    ]
+  },
+  {
+    "id": "1047",
+    "role": "StaticText",
+    "name": "Optional",
+    "properties": {},
+    "children": [
+      "-1000001036"
+    ]
+  },
+  {
+    "id": "1048",
+    "role": "StaticText",
+    "name": "Supplier invoice no.",
+    "properties": {},
+    "children": [
+      "-1000001037"
+    ]
+  },
+  {
+    "id": "913",
+    "role": "textbox",
+    "name": "Supplier invoice no.",
+    "value": "SYN-302-EDIT-320",
+    "description": "Optional",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "editable": "plaintext",
+      "settable": true,
+      "multiline": false,
+      "readonly": false,
+      "required": false,
+      "describedby": ":rb:-desc"
+    },
+    "children": [
+      "914"
+    ]
+  },
+  {
+    "id": "1050",
+    "role": "StaticText",
+    "name": "Optional",
+    "properties": {},
+    "children": [
+      "-1000001039"
+    ]
+  },
+  {
+    "id": "1051",
+    "role": "StaticText",
+    "name": "Gross (EUR)",
+    "properties": {},
+    "children": [
+      "-1000001040"
+    ]
+  },
+  {
+    "id": "920",
+    "role": "textbox",
+    "name": "Gross (EUR)",
+    "value": "123.45",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "editable": "plaintext",
+      "settable": true,
+      "multiline": false,
+      "readonly": false,
+      "required": false
+    },
+    "children": [
+      "921"
+    ]
+  },
+  {
+    "id": "1053",
+    "role": "StaticText",
+    "name": "VAT (EUR)",
+    "properties": {},
+    "children": [
+      "-1000001042"
+    ]
+  },
+  {
+    "id": "926",
+    "role": "textbox",
+    "name": "VAT (EUR)",
+    "value": "0.00",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "editable": "plaintext",
+      "settable": true,
+      "multiline": false,
+      "readonly": false,
+      "required": false
+    },
+    "children": [
+      "927"
+    ]
+  },
+  {
+    "id": "1055",
+    "role": "StaticText",
+    "name": "Currency",
+    "properties": {},
+    "children": [
+      "-1000001044"
+    ]
+  },
+  {
+    "id": "932",
+    "role": "textbox",
+    "name": "Currency",
+    "value": "EUR",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "editable": "plaintext",
+      "settable": true,
+      "multiline": false,
+      "readonly": false,
+      "required": false
+    },
+    "children": [
+      "933"
+    ]
+  },
+  {
+    "id": "1057",
+    "role": "StaticText",
+    "name": "Tax point date",
+    "properties": {},
+    "children": [
+      "-1000001046"
+    ]
+  },
+  {
+    "id": "938",
+    "role": "Date",
+    "name": "Tax point date",
+    "value": "2026-10-23",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "settable": true
+    },
+    "children": [
+      "939"
+    ]
+  },
+  {
+    "id": "1063",
+    "role": "StaticText",
+    "name": "Paid by (claimant)",
+    "properties": {},
+    "children": [
+      "-1000001052"
+    ]
+  },
+  {
+    "id": "952",
+    "role": "combobox",
+    "name": "Paid by (claimant)",
+    "value": "— company paid —",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "hasPopup": "menu",
+      "expanded": false
+    },
+    "children": [
+      "955"
+    ]
+  },
+  {
+    "id": "1064",
+    "role": "StaticText",
+    "name": "Only when an employee or director paid out of their own pocket",
+    "properties": {},
+    "children": [
+      "-1000001053",
+      "-1000001054"
+    ]
+  },
+  {
+    "id": "1065",
+    "role": "StaticText",
+    "name": "Place-of-supply rule",
+    "properties": {},
+    "children": [
+      "-1000001055",
+      "-1000001056"
+    ]
+  },
+  {
+    "id": "969",
+    "role": "combobox",
+    "name": "Place-of-supply rule",
+    "value": "General (default)",
+    "description": "declare only for local foreign purchases (e.g. a hotel or a restaurant bill)",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "hasPopup": "menu",
+      "expanded": false,
+      "describedby": ":rh:-desc"
+    },
+    "children": [
+      "972"
+    ]
+  },
+  {
+    "id": "1066",
+    "role": "StaticText",
+    "name": "declare only for local foreign purchases (e.g. a hotel or a restaurant bill)",
+    "properties": {},
+    "children": [
+      "-1000001057",
+      "-1000001058",
+      "-1000001059",
+      "-1000001060",
+      "-1000001061"
+    ]
+  },
+  {
+    "id": "1067",
+    "role": "StaticText",
+    "name": "Supplied in country",
+    "properties": {},
+    "children": [
+      "-1000001062",
+      "-1000001063"
+    ]
+  },
+  {
+    "id": "991",
+    "role": "textbox",
+    "name": "Supplied in country",
+    "description": "ISO code where the supply physically took place",
+    "properties": {
+      "disabled": true,
+      "invalid": "false",
+      "editable": "plaintext",
+      "multiline": false,
+      "readonly": false,
+      "required": false,
+      "describedby": ":ri:-desc"
+    },
+    "children": [
+      "992",
+      "993"
+    ]
+  },
+  {
+    "id": "1068",
+    "role": "StaticText",
+    "name": "ISO code where the supply physically took place",
+    "properties": {},
+    "children": [
+      "-1000001064",
+      "-1000001065",
+      "-1000001066"
+    ]
+  },
+  {
+    "id": "-1000001067",
+    "role": "InlineTextBox",
+    "name": "The source document, the AI reading and ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001068",
+    "role": "InlineTextBox",
+    "name": "the approval history stay attached and ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001069",
+    "role": "InlineTextBox",
+    "name": "cannot be edited here.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "1115",
+    "role": "StaticText",
+    "name": "Not saved",
+    "properties": {},
+    "children": [
+      "-1000001080"
+    ]
+  },
+  {
+    "id": "1116",
+    "role": "StaticText",
+    "name": "409 Conflict: SYNTHETIC302 Possible duplicate — injected refusal for accessibility QA",
+    "properties": {},
+    "children": [
+      "-1000001081",
+      "-1000001082",
+      "-1000001083"
+    ]
+  },
+  {
+    "id": "1117",
+    "role": "StaticText",
+    "name": "Your changes are kept — fix them and save again.",
+    "properties": {},
+    "children": [
+      "-1000001084",
+      "-1000001085"
+    ]
+  },
+  {
+    "id": "-1000001086",
+    "role": "InlineTextBox",
+    "name": "This is a separate purchase — ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001087",
+    "role": "InlineTextBox",
+    "name": "save anyway (recorded in the ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001088",
+    "role": "InlineTextBox",
+    "name": "audit log)",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001079",
+    "role": "InlineTextBox",
+    "name": "Save draft",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001034",
+    "role": "InlineTextBox",
+    "name": "Category",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "836",
+    "role": "MenuListPopup",
+    "name": "",
+    "properties": {},
+    "children": [
+      "837"
+    ]
+  },
+  {
+    "id": "-1000001035",
+    "role": "InlineTextBox",
+    "name": "Supplier",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "898",
+    "role": "MenuListPopup",
+    "name": "",
+    "properties": {},
+    "children": [
+      "899"
+    ]
+  },
+  {
+    "id": "-1000001036",
+    "role": "InlineTextBox",
+    "name": "Optional",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001037",
+    "role": "InlineTextBox",
+    "name": "Supplier invoice no.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "914",
+    "role": "generic",
+    "name": "",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "1049"
+    ]
+  },
+  {
+    "id": "-1000001039",
+    "role": "InlineTextBox",
+    "name": "Optional",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001040",
+    "role": "InlineTextBox",
+    "name": "Gross (EUR)",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "921",
+    "role": "generic",
+    "name": "",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "1098"
+    ]
+  },
+  {
+    "id": "-1000001042",
+    "role": "InlineTextBox",
+    "name": "VAT (EUR)",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "927",
+    "role": "generic",
+    "name": "",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "1054"
+    ]
+  },
+  {
+    "id": "-1000001044",
+    "role": "InlineTextBox",
+    "name": "Currency",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "933",
+    "role": "generic",
+    "name": "",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "1056"
+    ]
+  },
+  {
+    "id": "-1000001046",
+    "role": "InlineTextBox",
+    "name": "Tax point date",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "940",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "941"
+    ]
+  },
+  {
+    "id": "947",
+    "role": "button",
+    "name": "Show date picker Show date picker",
+    "properties": {
+      "focusable": true,
+      "hasPopup": "menu"
+    },
+    "children": []
+  },
+  {
+    "id": "-1000001052",
+    "role": "InlineTextBox",
+    "name": "Paid by (claimant)",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "955",
+    "role": "MenuListPopup",
+    "name": "",
+    "properties": {},
+    "children": [
+      "956"
+    ]
+  },
+  {
+    "id": "-1000001053",
+    "role": "InlineTextBox",
+    "name": "Only when an employee or director paid ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001054",
+    "role": "InlineTextBox",
+    "name": "out of their own pocket",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001055",
+    "role": "InlineTextBox",
+    "name": "Place-of-supply ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001056",
+    "role": "InlineTextBox",
+    "name": "rule",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "972",
+    "role": "MenuListPopup",
+    "name": "",
+    "properties": {},
+    "children": [
+      "973"
+    ]
+  },
+  {
+    "id": "-1000001057",
+    "role": "InlineTextBox",
+    "name": "declare only for ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001058",
+    "role": "InlineTextBox",
+    "name": "local foreign ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001059",
+    "role": "InlineTextBox",
+    "name": "purchases (e.g. a ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001060",
+    "role": "InlineTextBox",
+    "name": "hotel or a ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001061",
+    "role": "InlineTextBox",
+    "name": "restaurant bill)",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001062",
+    "role": "InlineTextBox",
+    "name": "Supplied in ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001063",
+    "role": "InlineTextBox",
+    "name": "country",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "993",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001064",
+    "role": "InlineTextBox",
+    "name": "ISO code where the ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001065",
+    "role": "InlineTextBox",
+    "name": "supply physically ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001066",
+    "role": "InlineTextBox",
+    "name": "took place",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001080",
+    "role": "InlineTextBox",
+    "name": "Not saved",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001081",
+    "role": "InlineTextBox",
+    "name": "409 Conflict: SYNTHETIC302 ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001082",
+    "role": "InlineTextBox",
+    "name": "Possible duplicate — injected ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001083",
+    "role": "InlineTextBox",
+    "name": "refusal for accessibility QA",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001084",
+    "role": "InlineTextBox",
+    "name": "Your changes are kept — fix them and ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001085",
+    "role": "InlineTextBox",
+    "name": "save again.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "840",
+    "role": "option",
+    "name": "Software",
+    "properties": {
+      "focusable": true,
+      "selected": true
+    },
+    "children": []
+  },
+  {
+    "id": "843",
+    "role": "option",
+    "name": "Transport",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "846",
+    "role": "option",
+    "name": "Travel",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "849",
+    "role": "option",
+    "name": "Marketing",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "852",
+    "role": "option",
+    "name": "Salary",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "855",
+    "role": "option",
+    "name": "Contractor",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "858",
+    "role": "option",
+    "name": "Rent",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "861",
+    "role": "option",
+    "name": "Tax",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "864",
+    "role": "option",
+    "name": "Bank Fee",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "867",
+    "role": "option",
+    "name": "Meals",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "870",
+    "role": "option",
+    "name": "Insurance",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "873",
+    "role": "option",
+    "name": "Education",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "876",
+    "role": "option",
+    "name": "Office Supplies",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "879",
+    "role": "option",
+    "name": "Vehicle",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "882",
+    "role": "option",
+    "name": "It_equipment",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "885",
+    "role": "option",
+    "name": "Machinery",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "888",
+    "role": "option",
+    "name": "Furniture",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "902",
+    "role": "option",
+    "name": "— none —",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "905",
+    "role": "option",
+    "name": "SYNTHETIC302 Supplier",
+    "properties": {
+      "focusable": true,
+      "selected": true
+    },
+    "children": []
+  },
+  {
+    "id": "1049",
+    "role": "StaticText",
+    "name": "SYN-302-EDIT-320",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "-1000001038"
+    ]
+  },
+  {
+    "id": "1098",
+    "role": "StaticText",
+    "name": "123.45",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "-1000001041"
+    ]
+  },
+  {
+    "id": "1054",
+    "role": "StaticText",
+    "name": "0.00",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "-1000001043"
+    ]
+  },
+  {
+    "id": "1056",
+    "role": "StaticText",
+    "name": "EUR",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "-1000001045"
+    ]
+  },
+  {
+    "id": "941",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "942",
+      "1059",
+      "944",
+      "1061",
+      "946"
+    ]
+  },
+  {
+    "id": "959",
+    "role": "option",
+    "name": "— company paid —",
+    "properties": {
+      "focusable": true,
+      "selected": true
+    },
+    "children": []
+  },
+  {
+    "id": "976",
+    "role": "option",
+    "name": "General (default)",
+    "properties": {
+      "focusable": true,
+      "selected": true
+    },
+    "children": []
+  },
+  {
+    "id": "979",
+    "role": "option",
+    "name": "Accommodation — immovable property (Art 47)",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "982",
+    "role": "option",
+    "name": "Restaurant & catering (Art 55)",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "-1000001038",
+    "role": "InlineTextBox",
+    "name": "SYN-302-EDIT-320",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": []
+  },
+  {
+    "id": "-1000001041",
+    "role": "InlineTextBox",
+    "name": "123.45",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": []
+  },
+  {
+    "id": "-1000001043",
+    "role": "InlineTextBox",
+    "name": "0.00",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": []
+  },
+  {
+    "id": "-1000001045",
+    "role": "InlineTextBox",
+    "name": "EUR",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": []
+  },
+  {
+    "id": "942",
+    "role": "spinbutton",
+    "name": "Month Month",
+    "value": 10,
+    "properties": {
+      "focusable": true,
+      "settable": true,
+      "required": false,
+      "valuemin": 1,
+      "valuemax": 12,
+      "valuetext": ""
+    },
+    "children": [
+      "1058"
+    ]
+  },
+  {
+    "id": "1059",
+    "role": "StaticText",
+    "name": "/",
+    "properties": {},
+    "children": [
+      "-1000001048"
+    ]
+  },
+  {
+    "id": "944",
+    "role": "spinbutton",
+    "name": "Day Day",
+    "value": 23,
+    "properties": {
+      "focusable": true,
+      "settable": true,
+      "required": false,
+      "valuemin": 1,
+      "valuemax": 31,
+      "valuetext": ""
+    },
+    "children": [
+      "1060"
+    ]
+  },
+  {
+    "id": "1061",
+    "role": "StaticText",
+    "name": "/",
+    "properties": {},
+    "children": [
+      "-1000001050"
+    ]
+  },
+  {
+    "id": "946",
+    "role": "spinbutton",
+    "name": "Year Year",
+    "value": 2026,
+    "properties": {
+      "focusable": true,
+      "settable": true,
+      "required": false,
+      "valuemin": 1,
+      "valuemax": 275760,
+      "valuetext": ""
+    },
+    "children": [
+      "1062"
+    ]
+  },
+  {
+    "id": "1058",
+    "role": "StaticText",
+    "name": "10",
+    "properties": {},
+    "children": [
+      "-1000001047"
+    ]
+  },
+  {
+    "id": "-1000001048",
+    "role": "InlineTextBox",
+    "name": "/",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "1060",
+    "role": "StaticText",
+    "name": "23",
+    "properties": {},
+    "children": [
+      "-1000001049"
+    ]
+  },
+  {
+    "id": "-1000001050",
+    "role": "InlineTextBox",
+    "name": "/",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "1062",
+    "role": "StaticText",
+    "name": "2026",
+    "properties": {},
+    "children": [
+      "-1000001051"
+    ]
+  },
+  {
+    "id": "-1000001047",
+    "role": "InlineTextBox",
+    "name": "10",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001049",
+    "role": "InlineTextBox",
+    "name": "23",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001051",
+    "role": "InlineTextBox",
+    "name": "2026",
+    "properties": {},
+    "children": []
+  }
+]

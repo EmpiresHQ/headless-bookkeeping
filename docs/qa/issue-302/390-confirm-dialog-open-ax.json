@@ -1,0 +1,209 @@
+[
+  {
+    "id": "1225",
+    "role": "RootWebArea",
+    "name": "Bookkeeping",
+    "properties": {
+      "focusable": true,
+      "focused": true,
+      "url": "http://127.0.0.1:5302/books/expenses/2"
+    },
+    "children": [
+      "1227"
+    ]
+  },
+  {
+    "id": "1263",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1265",
+      "1390"
+    ]
+  },
+  {
+    "id": "1265",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1307",
+      "1308",
+      "1339",
+      "1356",
+      "1358",
+      "1359",
+      "1361",
+      "1366",
+      "1370",
+      "1378",
+      "1384",
+      "1388"
+    ]
+  },
+  {
+    "id": "1390",
+    "role": "alertdialog",
+    "name": "Delete this draft expense?",
+    "description": "The draft is removed permanently. Posted expenses can never be deleted — only corrected.",
+    "properties": {
+      "focusable": true,
+      "modal": false,
+      "describedby": "radix-:r5:"
+    },
+    "children": [
+      "1391",
+      "1392",
+      "1393"
+    ]
+  },
+  {
+    "id": "1388",
+    "role": "region",
+    "name": "Notifications alt+T",
+    "properties": {
+      "live": "polite",
+      "atomic": false,
+      "relevant": "additions text",
+      "focusable": true
+    },
+    "children": []
+  },
+  {
+    "id": "1391",
+    "role": "heading",
+    "name": "Delete this draft expense?",
+    "properties": {
+      "level": 2
+    },
+    "children": [
+      "1443"
+    ]
+  },
+  {
+    "id": "1392",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1444"
+    ]
+  },
+  {
+    "id": "1394",
+    "role": "button",
+    "name": "Cancel",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "focused": true
+    },
+    "children": [
+      "1445"
+    ]
+  },
+  {
+    "id": "1395",
+    "role": "button",
+    "name": "Delete",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "1446"
+    ]
+  },
+  {
+    "id": "1396",
+    "role": "status",
+    "name": "",
+    "properties": {
+      "live": "polite",
+      "atomic": true,
+      "relevant": "additions text"
+    },
+    "children": []
+  },
+  {
+    "id": "1443",
+    "role": "StaticText",
+    "name": "Delete this draft expense?",
+    "properties": {},
+    "children": [
+      "-1000001771"
+    ]
+  },
+  {
+    "id": "1444",
+    "role": "StaticText",
+    "name": "The draft is removed permanently. Posted expenses can never be deleted — only corrected.",
+    "properties": {},
+    "children": [
+      "-1000001772",
+      "-1000001773",
+      "-1000001774"
+    ]
+  },
+  {
+    "id": "1445",
+    "role": "StaticText",
+    "name": "Cancel",
+    "properties": {},
+    "children": [
+      "-1000001775"
+    ]
+  },
+  {
+    "id": "1446",
+    "role": "StaticText",
+    "name": "Delete",
+    "properties": {},
+    "children": [
+      "-1000001776"
+    ]
+  },
+  {
+    "id": "-1000001771",
+    "role": "InlineTextBox",
+    "name": "Delete this draft expense?",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001772",
+    "role": "InlineTextBox",
+    "name": "The draft is removed permanently. ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001773",
+    "role": "InlineTextBox",
+    "name": "Posted expenses can never be deleted ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001774",
+    "role": "InlineTextBox",
+    "name": "— only corrected.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001775",
+    "role": "InlineTextBox",
+    "name": "Cancel",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001776",
+    "role": "InlineTextBox",
+    "name": "Delete",
+    "properties": {},
+    "children": []
+  }
+]

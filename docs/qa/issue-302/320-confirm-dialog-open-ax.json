@@ -1,0 +1,225 @@
+[
+  {
+    "id": "1222",
+    "role": "RootWebArea",
+    "name": "Bookkeeping",
+    "properties": {
+      "focusable": true,
+      "focused": true,
+      "url": "http://127.0.0.1:5302/books/expenses/2"
+    },
+    "children": [
+      "1225"
+    ]
+  },
+  {
+    "id": "1261",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1263",
+      "1387"
+    ]
+  },
+  {
+    "id": "1263",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1305",
+      "1306",
+      "1336",
+      "1353",
+      "1355",
+      "1356",
+      "1358",
+      "1363",
+      "1367",
+      "1375",
+      "1381",
+      "1385"
+    ]
+  },
+  {
+    "id": "1387",
+    "role": "alertdialog",
+    "name": "Delete this draft expense?",
+    "description": "The draft is removed permanently. Posted expenses can never be deleted — only corrected.",
+    "properties": {
+      "focusable": true,
+      "modal": false,
+      "describedby": "radix-:r5:"
+    },
+    "children": [
+      "1388",
+      "1389",
+      "1390"
+    ]
+  },
+  {
+    "id": "1385",
+    "role": "region",
+    "name": "Notifications alt+T",
+    "properties": {
+      "live": "polite",
+      "atomic": false,
+      "relevant": "additions text",
+      "focusable": true
+    },
+    "children": []
+  },
+  {
+    "id": "1388",
+    "role": "heading",
+    "name": "Delete this draft expense?",
+    "properties": {
+      "level": 2
+    },
+    "children": [
+      "1440"
+    ]
+  },
+  {
+    "id": "1389",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1441"
+    ]
+  },
+  {
+    "id": "1391",
+    "role": "button",
+    "name": "Cancel",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "focused": true
+    },
+    "children": [
+      "1442"
+    ]
+  },
+  {
+    "id": "1392",
+    "role": "button",
+    "name": "Delete",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "1443"
+    ]
+  },
+  {
+    "id": "1393",
+    "role": "status",
+    "name": "",
+    "properties": {
+      "live": "polite",
+      "atomic": true,
+      "relevant": "additions text"
+    },
+    "children": []
+  },
+  {
+    "id": "1440",
+    "role": "StaticText",
+    "name": "Delete this draft expense?",
+    "properties": {},
+    "children": [
+      "-1000002016",
+      "-1000002017"
+    ]
+  },
+  {
+    "id": "1441",
+    "role": "StaticText",
+    "name": "The draft is removed permanently. Posted expenses can never be deleted — only corrected.",
+    "properties": {},
+    "children": [
+      "-1000002018",
+      "-1000002019",
+      "-1000002020",
+      "-1000002021"
+    ]
+  },
+  {
+    "id": "1442",
+    "role": "StaticText",
+    "name": "Cancel",
+    "properties": {},
+    "children": [
+      "-1000002022"
+    ]
+  },
+  {
+    "id": "1443",
+    "role": "StaticText",
+    "name": "Delete",
+    "properties": {},
+    "children": [
+      "-1000002023"
+    ]
+  },
+  {
+    "id": "-1000002016",
+    "role": "InlineTextBox",
+    "name": "Delete this draft ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002017",
+    "role": "InlineTextBox",
+    "name": "expense?",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002018",
+    "role": "InlineTextBox",
+    "name": "The draft is removed ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002019",
+    "role": "InlineTextBox",
+    "name": "permanently. Posted expenses ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002020",
+    "role": "InlineTextBox",
+    "name": "can never be deleted — only ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002021",
+    "role": "InlineTextBox",
+    "name": "corrected.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002022",
+    "role": "InlineTextBox",
+    "name": "Cancel",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002023",
+    "role": "InlineTextBox",
+    "name": "Delete",
+    "properties": {},
+    "children": []
+  }
+]

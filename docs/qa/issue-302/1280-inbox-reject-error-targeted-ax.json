@@ -1,0 +1,385 @@
+[
+  {
+    "id": "1336",
+    "role": "RootWebArea",
+    "name": "Bookkeeping",
+    "properties": {
+      "focusable": true,
+      "focused": true,
+      "url": "http://127.0.0.1:5302/inbox/approval/2"
+    },
+    "children": [
+      "1342"
+    ]
+  },
+  {
+    "id": "1374",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1376",
+      "1341"
+    ]
+  },
+  {
+    "id": "1376",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1387",
+      "1392",
+      "1396",
+      "1404",
+      "1410",
+      "1414",
+      "1536",
+      "1537",
+      "1545",
+      "1547",
+      "1418",
+      "1419",
+      "1444",
+      "1445",
+      "1476"
+    ]
+  },
+  {
+    "id": "1341",
+    "role": "dialog",
+    "name": "Reject expense",
+    "properties": {
+      "focusable": true,
+      "focused": true,
+      "modal": false
+    },
+    "children": [
+      "1478",
+      "1339",
+      "1482",
+      "1483"
+    ]
+  },
+  {
+    "id": "1476",
+    "role": "region",
+    "name": "Notifications alt+T",
+    "properties": {
+      "live": "polite",
+      "atomic": false,
+      "relevant": "additions text",
+      "focusable": true
+    },
+    "children": [
+      "1557"
+    ]
+  },
+  {
+    "id": "1339",
+    "role": "button",
+    "name": "Close",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": []
+  },
+  {
+    "id": "1482",
+    "role": "heading",
+    "name": "Reject expense",
+    "properties": {
+      "level": 2
+    },
+    "children": [
+      "1528"
+    ]
+  },
+  {
+    "id": "1484",
+    "role": "group",
+    "name": "",
+    "properties": {
+      "invalid": "false"
+    },
+    "children": [
+      "1485",
+      "1486",
+      "1340",
+      "1493"
+    ]
+  },
+  {
+    "id": "1557",
+    "role": "list",
+    "name": "",
+    "properties": {
+      "focusable": true
+    },
+    "children": [
+      "1556"
+    ]
+  },
+  {
+    "id": "1528",
+    "role": "StaticText",
+    "name": "Reject expense",
+    "properties": {},
+    "children": [
+      "-1000000331"
+    ]
+  },
+  {
+    "id": "1485",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1529"
+    ]
+  },
+  {
+    "id": "1487",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1488",
+      "1338"
+    ]
+  },
+  {
+    "id": "1492",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1532"
+    ]
+  },
+  {
+    "id": "1340",
+    "role": "button",
+    "name": "Reject & return to draft",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "1533"
+    ]
+  },
+  {
+    "id": "1493",
+    "role": "status",
+    "name": "",
+    "properties": {
+      "live": "polite",
+      "atomic": true,
+      "relevant": "additions text"
+    },
+    "children": []
+  },
+  {
+    "id": "1556",
+    "role": "listitem",
+    "name": "",
+    "properties": {
+      "focusable": true,
+      "level": 1
+    },
+    "children": [
+      "1554",
+      "1555"
+    ]
+  },
+  {
+    "id": "-1000000331",
+    "role": "InlineTextBox",
+    "name": "Reject expense",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "1529",
+    "role": "StaticText",
+    "name": "The expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and nothing is deleted. Your reason is saved with this rejected approval.",
+    "properties": {},
+    "children": [
+      "-1000000332",
+      "-1000000333",
+      "-1000000334"
+    ]
+  },
+  {
+    "id": "1530",
+    "role": "StaticText",
+    "name": "Reason",
+    "properties": {},
+    "children": [
+      "-1000000335"
+    ]
+  },
+  {
+    "id": "1338",
+    "role": "textbox",
+    "name": "Reason",
+    "value": "SYNTHETIC302 keyboard QA reason",
+    "description": "Required — it lands in the audit trail",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "editable": "plaintext",
+      "settable": true,
+      "multiline": true,
+      "readonly": false,
+      "required": false,
+      "describedby": ":r6:-desc"
+    },
+    "children": [
+      "1490",
+      "1491"
+    ]
+  },
+  {
+    "id": "1532",
+    "role": "StaticText",
+    "name": "Required — it lands in the audit trail",
+    "properties": {},
+    "children": [
+      "-1000000337"
+    ]
+  },
+  {
+    "id": "1533",
+    "role": "StaticText",
+    "name": "Reject & return to draft",
+    "properties": {},
+    "children": [
+      "-1000000338"
+    ]
+  },
+  {
+    "id": "1554",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1552"
+    ]
+  },
+  {
+    "id": "1553",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1573"
+    ]
+  },
+  {
+    "id": "-1000000332",
+    "role": "InlineTextBox",
+    "name": "The expense goes back to draft, where it can be corrected and ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000333",
+    "role": "InlineTextBox",
+    "name": "resubmitted. Nothing is posted and nothing is deleted. Your reason ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000334",
+    "role": "InlineTextBox",
+    "name": "is saved with this rejected approval.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000335",
+    "role": "InlineTextBox",
+    "name": "Reason",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "1491",
+    "role": "generic",
+    "name": "",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "1531"
+    ]
+  },
+  {
+    "id": "-1000000337",
+    "role": "InlineTextBox",
+    "name": "Required — it lands in the audit trail",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000338",
+    "role": "InlineTextBox",
+    "name": "Reject & return to draft",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "1552",
+    "role": "image",
+    "name": "",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "1573",
+    "role": "StaticText",
+    "name": "503 Service Unavailable: SYNTHETIC302 reject refused",
+    "properties": {},
+    "children": [
+      "-1000000329",
+      "-1000000330"
+    ]
+  },
+  {
+    "id": "1531",
+    "role": "StaticText",
+    "name": "SYNTHETIC302 keyboard QA reason",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "-1000000336"
+    ]
+  },
+  {
+    "id": "-1000000329",
+    "role": "InlineTextBox",
+    "name": "503 Service Unavailable: SYNTHETIC302 ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000330",
+    "role": "InlineTextBox",
+    "name": "reject refused",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000336",
+    "role": "InlineTextBox",
+    "name": "SYNTHETIC302 keyboard QA reason",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": []
+  }
+]

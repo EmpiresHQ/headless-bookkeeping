@@ -1,0 +1,1385 @@
+[
+  {
+    "id": "1957",
+    "role": "RootWebArea",
+    "name": "Bookkeeping",
+    "properties": {
+      "focusable": true,
+      "focused": true,
+      "url": "http://127.0.0.1:5302/bank/statements/1"
+    },
+    "children": [
+      "1964"
+    ]
+  },
+  {
+    "id": "1993",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1994",
+      "2126"
+    ]
+  },
+  {
+    "id": "2033",
+    "role": "main",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2034",
+      "1960"
+    ]
+  },
+  {
+    "id": "2099",
+    "role": "navigation",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1958",
+      "2104",
+      "2108",
+      "2116",
+      "2122"
+    ]
+  },
+  {
+    "id": "2126",
+    "role": "region",
+    "name": "Notifications alt+T",
+    "properties": {
+      "live": "polite",
+      "atomic": false,
+      "relevant": "additions text",
+      "focusable": true
+    },
+    "children": []
+  },
+  {
+    "id": "2034",
+    "role": "region",
+    "name": "Recent results",
+    "properties": {},
+    "children": [
+      "2035",
+      "2048"
+    ]
+  },
+  {
+    "id": "1960",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2050",
+      "2054",
+      "2071",
+      "2072",
+      "2086",
+      "1962",
+      "1963"
+    ]
+  },
+  {
+    "id": "1958",
+    "role": "link",
+    "name": "Inbox 2",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/inbox"
+    },
+    "children": [
+      "2182",
+      "2103"
+    ]
+  },
+  {
+    "id": "2104",
+    "role": "link",
+    "name": "Books",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/books"
+    },
+    "children": [
+      "2184"
+    ]
+  },
+  {
+    "id": "2108",
+    "role": "link",
+    "name": "Bank",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/bank"
+    },
+    "children": [
+      "2185"
+    ]
+  },
+  {
+    "id": "2116",
+    "role": "link",
+    "name": "Reports",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/reports"
+    },
+    "children": [
+      "2186"
+    ]
+  },
+  {
+    "id": "2122",
+    "role": "link",
+    "name": "Settings",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/settings"
+    },
+    "children": [
+      "2187"
+    ]
+  },
+  {
+    "id": "2035",
+    "role": "list",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2036"
+    ]
+  },
+  {
+    "id": "2049",
+    "role": "button",
+    "name": "Details",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "expanded": false
+    },
+    "children": [
+      "2148"
+    ]
+  },
+  {
+    "id": "2051",
+    "role": "link",
+    "name": "‹ Back",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/bank"
+    },
+    "children": [
+      "2149"
+    ]
+  },
+  {
+    "id": "2150",
+    "role": "StaticText",
+    "name": "Oct 2026",
+    "properties": {},
+    "children": [
+      "-1000002290"
+    ]
+  },
+  {
+    "id": "2052",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2053"
+    ]
+  },
+  {
+    "id": "2055",
+    "role": "radiogroup",
+    "name": "Bank lines",
+    "properties": {
+      "required": false
+    },
+    "children": [
+      "2056",
+      "2059"
+    ]
+  },
+  {
+    "id": "2064",
+    "role": "searchbox",
+    "name": "Search this statement",
+    "description": "Matches description, counterparty, reference, IBAN, matched document, amount or date. Book matches books only the selected matches shown.",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "editable": "plaintext",
+      "settable": true,
+      "describedby": ":r4:"
+    },
+    "children": [
+      "2065",
+      "2066"
+    ]
+  },
+  {
+    "id": "2070",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2155",
+      "2156",
+      "2157"
+    ]
+  },
+  {
+    "id": "2071",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2158"
+    ]
+  },
+  {
+    "id": "2075",
+    "role": "checkbox",
+    "name": "Select match 2026-10-23 · SYN-302-001",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "focused": true,
+      "checked": "true"
+    },
+    "children": [
+      "2076"
+    ]
+  },
+  {
+    "id": "2077",
+    "role": "button",
+    "name": "SYNTHETIC302 payment 1 → 2026-10-23 · SYN-302-001 low −100.00 € 23 Oct",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "2078"
+    ]
+  },
+  {
+    "id": "2087",
+    "role": "button",
+    "name": "Book 1 match −100.00 € net",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "2088",
+      "2089"
+    ]
+  },
+  {
+    "id": "1962",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2174"
+    ]
+  },
+  {
+    "id": "2090",
+    "role": "button",
+    "name": "SYNTHETIC302 payment 2 No AI match — decide −50.00 € 23 Oct",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "2091"
+    ]
+  },
+  {
+    "id": "2182",
+    "role": "StaticText",
+    "name": "Inbox",
+    "properties": {},
+    "children": [
+      "-1000002323"
+    ]
+  },
+  {
+    "id": "2183",
+    "role": "StaticText",
+    "name": "2",
+    "properties": {},
+    "children": [
+      "-1000002324"
+    ]
+  },
+  {
+    "id": "2184",
+    "role": "StaticText",
+    "name": "Books",
+    "properties": {},
+    "children": [
+      "-1000002325"
+    ]
+  },
+  {
+    "id": "2185",
+    "role": "StaticText",
+    "name": "Bank",
+    "properties": {},
+    "children": [
+      "-1000002326"
+    ]
+  },
+  {
+    "id": "2186",
+    "role": "StaticText",
+    "name": "Reports",
+    "properties": {},
+    "children": [
+      "-1000002327"
+    ]
+  },
+  {
+    "id": "2187",
+    "role": "StaticText",
+    "name": "Settings",
+    "properties": {},
+    "children": [
+      "-1000002328"
+    ]
+  },
+  {
+    "id": "2036",
+    "role": "listitem",
+    "name": "Reject: Expense #3",
+    "properties": {
+      "level": 1
+    },
+    "children": [
+      "2038",
+      "2047"
+    ]
+  },
+  {
+    "id": "2148",
+    "role": "StaticText",
+    "name": "Details",
+    "properties": {},
+    "children": [
+      "-1000002288"
+    ]
+  },
+  {
+    "id": "2149",
+    "role": "StaticText",
+    "name": "‹ Back",
+    "properties": {},
+    "children": [
+      "-1000002289"
+    ]
+  },
+  {
+    "id": "-1000002290",
+    "role": "InlineTextBox",
+    "name": "Oct 2026",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "2053",
+    "role": "button",
+    "name": "Delete",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "2151"
+    ]
+  },
+  {
+    "id": "2056",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2057",
+      "2058"
+    ]
+  },
+  {
+    "id": "2059",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2060",
+      "2061"
+    ]
+  },
+  {
+    "id": "2068",
+    "role": "generic",
+    "name": "",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": []
+  },
+  {
+    "id": "2155",
+    "role": "StaticText",
+    "name": "Matches ",
+    "properties": {},
+    "children": [
+      "-1000002294"
+    ]
+  },
+  {
+    "id": "2156",
+    "role": "StaticText",
+    "name": "description, counterparty, reference, IBAN, matched document, amount or date",
+    "properties": {},
+    "children": [
+      "-1000002295"
+    ]
+  },
+  {
+    "id": "2157",
+    "role": "StaticText",
+    "name": ". Book matches books only the selected matches shown.",
+    "properties": {},
+    "children": [
+      "-1000002296"
+    ]
+  },
+  {
+    "id": "2158",
+    "role": "StaticText",
+    "name": "AI PROPOSALS",
+    "properties": {},
+    "children": [
+      "-1000002297"
+    ]
+  },
+  {
+    "id": "2159",
+    "role": "StaticText",
+    "name": "✓",
+    "properties": {},
+    "children": [
+      "-1000002298"
+    ]
+  },
+  {
+    "id": "2080",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2160"
+    ]
+  },
+  {
+    "id": "2081",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2161",
+      "2162",
+      "2163"
+    ]
+  },
+  {
+    "id": "2164",
+    "role": "StaticText",
+    "name": "−100.00",
+    "properties": {},
+    "children": [
+      "-1000002305"
+    ]
+  },
+  {
+    "id": "2165",
+    "role": "StaticText",
+    "name": " ",
+    "properties": {},
+    "children": [
+      "-1000002306"
+    ]
+  },
+  {
+    "id": "2166",
+    "role": "StaticText",
+    "name": "€",
+    "properties": {},
+    "children": [
+      "-1000002307"
+    ]
+  },
+  {
+    "id": "2085",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2167"
+    ]
+  },
+  {
+    "id": "2168",
+    "role": "StaticText",
+    "name": "Book ",
+    "properties": {},
+    "children": [
+      "-1000002309"
+    ]
+  },
+  {
+    "id": "2169",
+    "role": "StaticText",
+    "name": "1",
+    "properties": {},
+    "children": [
+      "-1000002310"
+    ]
+  },
+  {
+    "id": "2170",
+    "role": "StaticText",
+    "name": " ",
+    "properties": {},
+    "children": [
+      "-1000002311"
+    ]
+  },
+  {
+    "id": "2171",
+    "role": "StaticText",
+    "name": "match",
+    "properties": {},
+    "children": [
+      "-1000002312"
+    ]
+  },
+  {
+    "id": "2172",
+    "role": "StaticText",
+    "name": "−100.00",
+    "properties": {},
+    "children": [
+      "-1000002313"
+    ]
+  },
+  {
+    "id": "2173",
+    "role": "StaticText",
+    "name": " € net",
+    "properties": {},
+    "children": [
+      "-1000002314"
+    ]
+  },
+  {
+    "id": "2174",
+    "role": "StaticText",
+    "name": "DECIDE YOURSELF",
+    "properties": {},
+    "children": [
+      "-1000002315"
+    ]
+  },
+  {
+    "id": "2093",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2175"
+    ]
+  },
+  {
+    "id": "2094",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2176"
+    ]
+  },
+  {
+    "id": "2177",
+    "role": "StaticText",
+    "name": "−50.00",
+    "properties": {},
+    "children": [
+      "-1000002319"
+    ]
+  },
+  {
+    "id": "2178",
+    "role": "StaticText",
+    "name": " ",
+    "properties": {},
+    "children": [
+      "-1000002320"
+    ]
+  },
+  {
+    "id": "2179",
+    "role": "StaticText",
+    "name": "€",
+    "properties": {},
+    "children": [
+      "-1000002321"
+    ]
+  },
+  {
+    "id": "2097",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2180"
+    ]
+  },
+  {
+    "id": "-1000002323",
+    "role": "InlineTextBox",
+    "name": "Inbox",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002324",
+    "role": "InlineTextBox",
+    "name": "2",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002325",
+    "role": "InlineTextBox",
+    "name": "Books",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002326",
+    "role": "InlineTextBox",
+    "name": "Bank",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002327",
+    "role": "InlineTextBox",
+    "name": "Reports",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002328",
+    "role": "InlineTextBox",
+    "name": "Settings",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "2039",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2136"
+    ]
+  },
+  {
+    "id": "2040",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2137",
+      "2138",
+      "2139"
+    ]
+  },
+  {
+    "id": "2041",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2140"
+    ]
+  },
+  {
+    "id": "2042",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2141",
+      "2142",
+      "2143"
+    ]
+  },
+  {
+    "id": "2045",
+    "role": "link",
+    "name": "Approval",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/inbox/approval/2"
+    },
+    "children": [
+      "2145"
+    ]
+  },
+  {
+    "id": "2046",
+    "role": "link",
+    "name": "Expense #3",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/books/expenses/3"
+    },
+    "children": [
+      "2146"
+    ]
+  },
+  {
+    "id": "2047",
+    "role": "button",
+    "name": "Dismiss result: Expense #3",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "2147"
+    ]
+  },
+  {
+    "id": "-1000002288",
+    "role": "InlineTextBox",
+    "name": "Details",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002289",
+    "role": "InlineTextBox",
+    "name": "‹ Back",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "2151",
+    "role": "StaticText",
+    "name": "Delete",
+    "properties": {},
+    "children": [
+      "-1000002291"
+    ]
+  },
+  {
+    "id": "2057",
+    "role": "radio",
+    "name": "Unmatched 2",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "checked": "true"
+    },
+    "children": []
+  },
+  {
+    "id": "2152",
+    "role": "StaticText",
+    "name": "Unmatched 2",
+    "properties": {},
+    "children": [
+      "-1000002292"
+    ]
+  },
+  {
+    "id": "2060",
+    "role": "radio",
+    "name": "All 2",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "checked": "false"
+    },
+    "children": []
+  },
+  {
+    "id": "2153",
+    "role": "StaticText",
+    "name": "All 2",
+    "properties": {},
+    "children": [
+      "-1000002293"
+    ]
+  },
+  {
+    "id": "-1000002294",
+    "role": "InlineTextBox",
+    "name": "Matches ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002295",
+    "role": "InlineTextBox",
+    "name": "description, counterparty, reference, IBAN, matched document, amount or date",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002296",
+    "role": "InlineTextBox",
+    "name": ". Book matches books only the selected matches shown.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002297",
+    "role": "InlineTextBox",
+    "name": "AI PROPOSALS",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002298",
+    "role": "InlineTextBox",
+    "name": "✓",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "2160",
+    "role": "StaticText",
+    "name": "SYNTHETIC302 payment 1",
+    "properties": {},
+    "children": [
+      "-1000002299",
+      "-1000002300"
+    ]
+  },
+  {
+    "id": "2161",
+    "role": "StaticText",
+    "name": "→ ",
+    "properties": {},
+    "children": [
+      "-1000002301"
+    ]
+  },
+  {
+    "id": "2162",
+    "role": "StaticText",
+    "name": "2026-10-23 · SYN-302-001",
+    "properties": {},
+    "children": [
+      "-1000002302",
+      "-1000002303"
+    ]
+  },
+  {
+    "id": "2163",
+    "role": "StaticText",
+    "name": "low",
+    "properties": {},
+    "children": [
+      "-1000002304"
+    ]
+  },
+  {
+    "id": "-1000002305",
+    "role": "InlineTextBox",
+    "name": "−100.00",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002306",
+    "role": "InlineTextBox",
+    "name": " ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002307",
+    "role": "InlineTextBox",
+    "name": "€",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "2167",
+    "role": "StaticText",
+    "name": "23 Oct",
+    "properties": {},
+    "children": [
+      "-1000002308"
+    ]
+  },
+  {
+    "id": "-1000002309",
+    "role": "InlineTextBox",
+    "name": "Book ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002310",
+    "role": "InlineTextBox",
+    "name": "1",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002311",
+    "role": "InlineTextBox",
+    "name": " ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002312",
+    "role": "InlineTextBox",
+    "name": "match",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002313",
+    "role": "InlineTextBox",
+    "name": "−100.00",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002314",
+    "role": "InlineTextBox",
+    "name": " € net",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002315",
+    "role": "InlineTextBox",
+    "name": "DECIDE YOURSELF",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "2175",
+    "role": "StaticText",
+    "name": "SYNTHETIC302 payment 2",
+    "properties": {},
+    "children": [
+      "-1000002316",
+      "-1000002317"
+    ]
+  },
+  {
+    "id": "2176",
+    "role": "StaticText",
+    "name": "No AI match — decide",
+    "properties": {},
+    "children": [
+      "-1000002318"
+    ]
+  },
+  {
+    "id": "-1000002319",
+    "role": "InlineTextBox",
+    "name": "−50.00",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002320",
+    "role": "InlineTextBox",
+    "name": " ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002321",
+    "role": "InlineTextBox",
+    "name": "€",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "2180",
+    "role": "StaticText",
+    "name": "23 Oct",
+    "properties": {},
+    "children": [
+      "-1000002322"
+    ]
+  },
+  {
+    "id": "2136",
+    "role": "StaticText",
+    "name": "Expense #3",
+    "properties": {},
+    "children": [
+      "-1000002268"
+    ]
+  },
+  {
+    "id": "2137",
+    "role": "StaticText",
+    "name": "Reject",
+    "properties": {},
+    "children": [
+      "-1000002269"
+    ]
+  },
+  {
+    "id": "2138",
+    "role": "StaticText",
+    "name": " · ",
+    "properties": {},
+    "children": [
+      "-1000002270"
+    ]
+  },
+  {
+    "id": "2139",
+    "role": "StaticText",
+    "name": "Failed",
+    "properties": {},
+    "children": [
+      "-1000002271"
+    ]
+  },
+  {
+    "id": "2140",
+    "role": "StaticText",
+    "name": "Rejecting was not confirmed (503 Service Unavailable: SYNTHETIC302 reject refused). Open the approval or the item for its current state before deciding again.",
+    "properties": {},
+    "children": [
+      "-1000002272",
+      "-1000002273",
+      "-1000002274",
+      "-1000002275",
+      "-1000002276",
+      "-1000002277",
+      "-1000002278",
+      "-1000002279",
+      "-1000002280"
+    ]
+  },
+  {
+    "id": "2141",
+    "role": "StaticText",
+    "name": "Recorded ",
+    "properties": {},
+    "children": [
+      "-1000002281"
+    ]
+  },
+  {
+    "id": "2142",
+    "role": "StaticText",
+    "name": "04:19 PM",
+    "properties": {},
+    "children": [
+      "-1000002282"
+    ]
+  },
+  {
+    "id": "2143",
+    "role": "StaticText",
+    "name": " in this session",
+    "properties": {},
+    "children": [
+      "-1000002283",
+      "-1000002284"
+    ]
+  },
+  {
+    "id": "2145",
+    "role": "StaticText",
+    "name": "Approval",
+    "properties": {},
+    "children": [
+      "-1000002285"
+    ]
+  },
+  {
+    "id": "2146",
+    "role": "StaticText",
+    "name": "Expense #3",
+    "properties": {},
+    "children": [
+      "-1000002286"
+    ]
+  },
+  {
+    "id": "2147",
+    "role": "StaticText",
+    "name": "×",
+    "properties": {},
+    "children": [
+      "-1000002287"
+    ]
+  },
+  {
+    "id": "-1000002291",
+    "role": "InlineTextBox",
+    "name": "Delete",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002292",
+    "role": "InlineTextBox",
+    "name": "Unmatched 2",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002293",
+    "role": "InlineTextBox",
+    "name": "All 2",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002299",
+    "role": "InlineTextBox",
+    "name": "SYNTHETIC302 ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002300",
+    "role": "InlineTextBox",
+    "name": "payment 1",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002301",
+    "role": "InlineTextBox",
+    "name": "→ ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002302",
+    "role": "InlineTextBox",
+    "name": "2026-10-23 · ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002303",
+    "role": "InlineTextBox",
+    "name": "SYN-302-001",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002304",
+    "role": "InlineTextBox",
+    "name": "low",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002308",
+    "role": "InlineTextBox",
+    "name": "23 Oct",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002316",
+    "role": "InlineTextBox",
+    "name": "SYNTHETIC302 ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002317",
+    "role": "InlineTextBox",
+    "name": "payment 2",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002318",
+    "role": "InlineTextBox",
+    "name": "No AI match — decide",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002322",
+    "role": "InlineTextBox",
+    "name": "23 Oct",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002268",
+    "role": "InlineTextBox",
+    "name": "Expense #3",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002269",
+    "role": "InlineTextBox",
+    "name": "Reject",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002270",
+    "role": "InlineTextBox",
+    "name": " · ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002271",
+    "role": "InlineTextBox",
+    "name": "Failed",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002272",
+    "role": "InlineTextBox",
+    "name": "Rejecting was not ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002273",
+    "role": "InlineTextBox",
+    "name": "confirmed (503 Service ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002274",
+    "role": "InlineTextBox",
+    "name": "Unavailable: SYNTHETIC302 ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002275",
+    "role": "InlineTextBox",
+    "name": "Unavailable: SYNTHETIC30",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002276",
+    "role": "InlineTextBox",
+    "name": "…",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002277",
+    "role": "InlineTextBox",
+    "name": "reject refused). Open the ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002278",
+    "role": "InlineTextBox",
+    "name": "approval or the item for ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002279",
+    "role": "InlineTextBox",
+    "name": "its current state before ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002280",
+    "role": "InlineTextBox",
+    "name": "deciding again.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002281",
+    "role": "InlineTextBox",
+    "name": "Recorded ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002282",
+    "role": "InlineTextBox",
+    "name": "04:19 PM",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002283",
+    "role": "InlineTextBox",
+    "name": " in this ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002284",
+    "role": "InlineTextBox",
+    "name": "session",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002285",
+    "role": "InlineTextBox",
+    "name": "Approval",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002286",
+    "role": "InlineTextBox",
+    "name": "Expense #3",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000002287",
+    "role": "InlineTextBox",
+    "name": "×",
+    "properties": {},
+    "children": []
+  }
+]
