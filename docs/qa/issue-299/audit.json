@@ -1,0 +1,364 @@
+{
+  "harnessPass": true,
+  "total": 17,
+  "pass": 15,
+  "fail": 0,
+  "unverified": 2,
+  "physicalGesture": "UNVERIFIED",
+  "nativeSystemBack": "UNVERIFIED",
+  "osKeyboard": "UNVERIFIED",
+  "cases": [
+    {
+      "id": "H1-clean-browser-back",
+      "harnessPass": true,
+      "verdict": "PASS: bounded clean dismissal and route/history consistency",
+      "createRequests": 0,
+      "newExpenses": [],
+      "newOperationKeys": [],
+      "scrollBefore": {
+        "top": 565,
+        "max": 565,
+        "client": 690
+      },
+      "scrollAfter": null,
+      "touchPeak": null,
+      "networkFailures": []
+    },
+    {
+      "id": "H2-dirty-browser-back",
+      "harnessPass": true,
+      "verdict": "PASS: dirty dismissal veto, one question, retained values/scroll and explicit discard",
+      "createRequests": 0,
+      "newExpenses": [],
+      "newOperationKeys": [],
+      "scrollBefore": {
+        "top": 565,
+        "max": 565,
+        "client": 690
+      },
+      "scrollAfter": {
+        "top": 565,
+        "max": 565,
+        "client": 690
+      },
+      "touchPeak": null,
+      "networkFailures": []
+    },
+    {
+      "id": "H3-dirty-same-task-double-back",
+      "harnessPass": true,
+      "verdict": "PASS: dirty dismissal veto, one question, retained values/scroll and explicit discard",
+      "createRequests": 0,
+      "newExpenses": [],
+      "newOperationKeys": [],
+      "scrollBefore": {
+        "top": 565,
+        "max": 565,
+        "client": 690
+      },
+      "scrollAfter": {
+        "top": 565,
+        "max": 565,
+        "client": 690
+      },
+      "touchPeak": null,
+      "networkFailures": []
+    },
+    {
+      "id": "H4-pending-same-task-double-back",
+      "harnessPass": true,
+      "verdict": "PASS: unknown-outcome contract retains form/key/facts; explicit retry recovers exactly one Expense; browser transport survival remains a limitation",
+      "createRequests": 2,
+      "newExpenses": [
+        14
+      ],
+      "newOperationKeys": [
+        "d90e44bf-a989-42b8-bdd2-c67c0896a4ab"
+      ],
+      "scrollBefore": {
+        "top": 583,
+        "max": 583,
+        "client": 690
+      },
+      "scrollAfter": {
+        "top": 686,
+        "max": 761,
+        "client": 690
+      },
+      "touchPeak": null,
+      "networkFailures": [
+        {
+          "at": 1792761794093,
+          "url": "http://127.0.0.1:5299/api/expenses",
+          "failure": {
+            "errorText": "net::ERR_ABORTED"
+          }
+        }
+      ]
+    },
+    {
+      "id": "H5-clean-double-close",
+      "harnessPass": true,
+      "verdict": "PASS: bounded clean dismissal and route/history consistency",
+      "createRequests": 0,
+      "newExpenses": [],
+      "newOperationKeys": [],
+      "scrollBefore": {
+        "top": 565,
+        "max": 565,
+        "client": 690
+      },
+      "scrollAfter": null,
+      "touchPeak": null,
+      "networkFailures": []
+    },
+    {
+      "id": "H6-dirty-double-close",
+      "harnessPass": true,
+      "verdict": "PASS: dirty dismissal veto, one question, retained values/scroll and explicit discard",
+      "createRequests": 0,
+      "newExpenses": [],
+      "newOperationKeys": [],
+      "scrollBefore": {
+        "top": 565,
+        "max": 565,
+        "client": 690
+      },
+      "scrollAfter": {
+        "top": 565,
+        "max": 565,
+        "client": 690
+      },
+      "touchPeak": null,
+      "networkFailures": []
+    },
+    {
+      "id": "H7-dirty-100ms-double-back",
+      "harnessPass": true,
+      "verdict": "PASS: dirty dismissal veto, one question, retained values/scroll and explicit discard",
+      "createRequests": 0,
+      "newExpenses": [],
+      "newOperationKeys": [],
+      "scrollBefore": {
+        "top": 565,
+        "max": 565,
+        "client": 690
+      },
+      "scrollAfter": {
+        "top": 565,
+        "max": 565,
+        "client": 690
+      },
+      "touchPeak": null,
+      "networkFailures": []
+    },
+    {
+      "id": "H8-pending-browser-back",
+      "harnessPass": true,
+      "verdict": "PASS: pending dismissal refused; one actual create; original completion navigates once",
+      "createRequests": 1,
+      "newExpenses": [
+        10
+      ],
+      "newOperationKeys": [
+        "b2bac6a9-a4af-4442-adee-fafa1ab73f32"
+      ],
+      "scrollBefore": {
+        "top": 583,
+        "max": 583,
+        "client": 690
+      },
+      "scrollAfter": {
+        "top": 583,
+        "max": 583,
+        "client": 690
+      },
+      "touchPeak": null,
+      "networkFailures": []
+    },
+    {
+      "id": "H9-pending-no-navigation-control",
+      "harnessPass": true,
+      "verdict": "PASS: pending dismissal refused; one actual create; original completion navigates once",
+      "createRequests": 1,
+      "newExpenses": [
+        11
+      ],
+      "newOperationKeys": [
+        "c20ee94d-1168-4cbe-b805-efaaa246974a"
+      ],
+      "scrollBefore": {
+        "top": 583,
+        "max": 583,
+        "client": 690
+      },
+      "scrollAfter": {
+        "top": 583,
+        "max": 583,
+        "client": 690
+      },
+      "touchPeak": null,
+      "networkFailures": []
+    },
+    {
+      "id": "T-portrait-clean",
+      "harnessPass": true,
+      "verdict": "PASS: bounded clean dismissal and route/history consistency",
+      "createRequests": 0,
+      "newExpenses": [],
+      "newOperationKeys": [],
+      "scrollBefore": {
+        "top": 565,
+        "max": 565,
+        "client": 690
+      },
+      "scrollAfter": null,
+      "touchPeak": 0,
+      "networkFailures": []
+    },
+    {
+      "id": "T-portrait-dirty",
+      "harnessPass": true,
+      "verdict": "PASS: dirty dismissal veto, one question, retained values/scroll and explicit discard",
+      "createRequests": 0,
+      "newExpenses": [],
+      "newOperationKeys": [],
+      "scrollBefore": {
+        "top": 565,
+        "max": 565,
+        "client": 690
+      },
+      "scrollAfter": {
+        "top": 565,
+        "max": 565,
+        "client": 690
+      },
+      "touchPeak": 17.756,
+      "networkFailures": []
+    },
+    {
+      "id": "T-portrait-pending",
+      "harnessPass": true,
+      "verdict": "PASS: pending dismissal refused; one actual create; original completion navigates once",
+      "createRequests": 1,
+      "newExpenses": [
+        12
+      ],
+      "newOperationKeys": [
+        "bb92b7ae-1818-4357-a026-c2d71ed27ef0"
+      ],
+      "scrollBefore": {
+        "top": 583,
+        "max": 583,
+        "client": 690
+      },
+      "scrollAfter": {
+        "top": 583,
+        "max": 583,
+        "client": 690
+      },
+      "touchPeak": 42.6667,
+      "networkFailures": []
+    },
+    {
+      "id": "T-landscape-clean",
+      "harnessPass": true,
+      "verdict": "PASS: bounded clean dismissal and route/history consistency",
+      "createRequests": 0,
+      "newExpenses": [],
+      "newOperationKeys": [],
+      "scrollBefore": {
+        "top": 814,
+        "max": 814,
+        "client": 273
+      },
+      "scrollAfter": null,
+      "touchPeak": 0,
+      "networkFailures": []
+    },
+    {
+      "id": "T-landscape-dirty",
+      "harnessPass": true,
+      "verdict": "PASS: dirty dismissal veto, one question, retained values/scroll and explicit discard",
+      "createRequests": 0,
+      "newExpenses": [],
+      "newOperationKeys": [],
+      "scrollBefore": {
+        "top": 814,
+        "max": 814,
+        "client": 273
+      },
+      "scrollAfter": {
+        "top": 814,
+        "max": 814,
+        "client": 273
+      },
+      "touchPeak": 17.756,
+      "networkFailures": []
+    },
+    {
+      "id": "T-landscape-pending",
+      "harnessPass": true,
+      "verdict": "PASS: pending dismissal refused; one actual create; original completion navigates once",
+      "createRequests": 1,
+      "newExpenses": [
+        13
+      ],
+      "newOperationKeys": [
+        "f001725d-3476-4cb8-8ddc-84c32195bff2"
+      ],
+      "scrollBefore": {
+        "top": 813,
+        "max": 813,
+        "client": 273
+      },
+      "scrollAfter": {
+        "top": 813,
+        "max": 813,
+        "client": 273
+      },
+      "touchPeak": 21.3333,
+      "networkFailures": []
+    },
+    {
+      "id": "C-landscape-clean-content",
+      "harnessPass": true,
+      "verdict": "UNVERIFIED: scrolling consumed the emulated gesture; drawer guard was not exercised",
+      "createRequests": 0,
+      "newExpenses": [],
+      "newOperationKeys": [],
+      "scrollBefore": {
+        "top": 814,
+        "max": 814,
+        "client": 273
+      },
+      "scrollAfter": {
+        "top": 620,
+        "max": 814,
+        "client": 273
+      },
+      "touchPeak": 0,
+      "networkFailures": []
+    },
+    {
+      "id": "C-landscape-dirty-content",
+      "harnessPass": true,
+      "verdict": "UNVERIFIED: scrolling consumed the emulated gesture; drawer guard was not exercised",
+      "createRequests": 0,
+      "newExpenses": [],
+      "newOperationKeys": [],
+      "scrollBefore": {
+        "top": 814,
+        "max": 814,
+        "client": 273
+      },
+      "scrollAfter": {
+        "top": 588,
+        "max": 814,
+        "client": 273
+      },
+      "touchPeak": 0,
+      "networkFailures": []
+    }
+  ]
+}
