@@ -9,6 +9,7 @@ export interface Database {
   fx_rate_probe: FxRateProbeTable;
   voucher_sequence: VoucherSequenceTable;
   expense: ExpenseTable;
+  expense_create_operation: ExpenseCreateOperationTable;
   sales_invoice: SalesInvoiceTable;
   override: OverrideTable;
   policy_config: PolicyConfigTable;
@@ -1032,4 +1033,13 @@ export interface FxRateProbeTable {
   from_date: string;
   to_date: string;
   probed_at: number;
+}
+
+/** Stored original create response; nullable fields exist only inside the claim transaction. */
+export interface ExpenseCreateOperationTable {
+  operation_key: string;
+  request_json: string;
+  expense_id: number | null;
+  response_json: string | null;
+  created_at: number;
 }

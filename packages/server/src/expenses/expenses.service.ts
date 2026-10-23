@@ -126,6 +126,53 @@ function meaningfulNameTokens(s: string): string[] {
     .filter((t) => !LEGAL_FORM_SUFFIXES.has(t));
 }
 
+/** Normalize only facts that the create path actually stores. Object order in
+ * nested VAT evidence is irrelevant; absent optional values use insert defaults.
+ */
+function createExpenseFacts(dto: CreateExpenseDto) {
+  return {
+    document_id: dto.document_id ?? null,
+    supplier_id: dto.supplier_id ?? null,
+    category: dto.category,
+    gross_amount: dto.gross_amount,
+    vat_amount: dto.vat_amount,
+    currency: dto.currency,
+    tax_point_date: dto.tax_point_date,
+    document_vat_marking: dto.document_vat_marking ?? null,
+    supplier_invoice_number: dto.supplier_invoice_number ?? null,
+    asset_name: dto.asset_name ?? null,
+    asset_useful_life_years: dto.asset_useful_life_years ?? null,
+    asset_residual_value_minor: dto.asset_residual_value_minor ?? null,
+    claimant_id: dto.claimant_id ?? null,
+    company_addressed_receipt:
+      dto.company_addressed_receipt === true
+        ? 1
+        : dto.company_addressed_receipt === false
+          ? 0
+          : null,
+    service_place_rule:
+      dto.service_place_rule === 'general'
+        ? null
+        : (dto.service_place_rule ?? null),
+    place_of_supply_country: dto.place_of_supply_country ?? null,
+    eu_vat_facts:
+      dto.eu_vat_facts == null ? null : JSON.stringify(dto.eu_vat_facts),
+    ai_confidence: dto.ai_confidence ?? null,
+    ai_document_type: dto.ai_document_type ?? null,
+    ai_kind: dto.ai_kind ?? null,
+  };
+}
+
+function canonicalCreateJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v !== null && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(
+          Object.entries(v).sort(([a], [b]) => a.localeCompare(b)),
+        )
+      : v,
+  );
+}
+
 @Injectable()
 export class ExpensesService {
   /**
@@ -222,50 +269,103 @@ export class ExpensesService {
     );
   }
 
-  async createExpense(dto: CreateExpenseDto): Promise<Expense> {
+  async createExpense(
+    dto: CreateExpenseDto,
+    operationKey?: string,
+  ): Promise<Expense> {
+    if (operationKey === undefined) {
+      await this.categoryService.assertValid(dto.category);
+      return this.insertExpense(dto, this.db);
+    }
+    if (!/^[A-Za-z0-9._:-]{1,128}$/.test(operationKey)) {
+      throw new BadRequestException(
+        'Idempotency-Key must be 1–128 ASCII letters, digits, dots, underscores, colons or hyphens',
+      );
+    }
+    const requestJson = canonicalCreateJson({
+      ...createExpenseFacts(dto),
+      eu_vat_facts: dto.eu_vat_facts ?? null,
+      allow_duplicate: dto.allow_duplicate === true,
+    });
+    const replay = (stored: {
+      request_json: string;
+      response_json: string | null;
+    }): Expense => {
+      if (stored.request_json !== requestJson) {
+        throw new ConflictException(
+          'Idempotency-Key was already used with different expense facts',
+        );
+      }
+      if (stored.response_json === null) {
+        throw new ConflictException(
+          'Expense creation is not yet confirmed; retry the same operation',
+        );
+      }
+      return JSON.parse(stored.response_json) as Expense;
+    };
+    // Fast replay also survives subsequent category/configuration changes.
+    // Safety does not depend on this read: the transaction claims the key first.
+    const existing = await this.db
+      .selectFrom('expense_create_operation')
+      .selectAll()
+      .where('operation_key', '=', operationKey)
+      .executeTakeFirst();
+    if (existing) return replay(existing);
+    // CategoryService reads the root connection: validate before opening a transaction.
     await this.categoryService.assertValid(dto.category);
+    return this.db.transaction().execute(async (trx) => {
+      // First statement is a WRITE: serialize concurrent claims at SQLite's
+      // unique key/write lock before reading or inserting an Expense.
+      const claimed = await trx
+        .insertInto('expense_create_operation')
+        .values({
+          operation_key: operationKey,
+          request_json: requestJson,
+          expense_id: null,
+          response_json: null,
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .onConflict((oc) => oc.column('operation_key').doNothing())
+        .returning('operation_key')
+        .executeTakeFirst();
+      if (!claimed) {
+        const stored = await trx
+          .selectFrom('expense_create_operation')
+          .selectAll()
+          .where('operation_key', '=', operationKey)
+          .executeTakeFirstOrThrow();
+        return replay(stored);
+      }
+      const expense = await this.insertExpense(dto, trx);
+      await trx
+        .updateTable('expense_create_operation')
+        .set({
+          expense_id: expense.id,
+          response_json: JSON.stringify(expense),
+        })
+        .where('operation_key', '=', operationKey)
+        .execute();
+      return expense;
+    });
+  }
 
+  private async insertExpense(
+    dto: CreateExpenseDto,
+    executor: Kysely<Database>,
+  ): Promise<Expense> {
     // Duplicate guard (issue #195 / ADR-0010). It refuses CREATION and nothing
     // else: it runs before the insert, so no voucher, posting or period lock is
     // ever involved and there is nothing to reverse afterwards.
-    const duplicate = await this.detectDuplicate(dto);
+    const duplicate = await this.detectDuplicate(dto, executor);
     if (duplicate && dto.allow_duplicate !== true) {
       throw new DuplicateExpenseException(duplicate);
     }
 
     const now = Math.floor(Date.now() / 1000);
-    const result = await this.db
+    const result = await executor
       .insertInto('expense')
       .values({
-        document_id: dto.document_id ?? null,
-        supplier_id: dto.supplier_id ?? null,
-        category: dto.category,
-        gross_amount: dto.gross_amount,
-        vat_amount: dto.vat_amount,
-        currency: dto.currency,
-        tax_point_date: dto.tax_point_date,
-        document_vat_marking: dto.document_vat_marking ?? null,
-        supplier_invoice_number: dto.supplier_invoice_number ?? null,
-        asset_name: dto.asset_name ?? null,
-        asset_useful_life_years: dto.asset_useful_life_years ?? null,
-        asset_residual_value_minor: dto.asset_residual_value_minor ?? null,
-        claimant_id: dto.claimant_id ?? null,
-        company_addressed_receipt:
-          dto.company_addressed_receipt === true
-            ? 1
-            : dto.company_addressed_receipt === false
-              ? 0
-              : null,
-        service_place_rule:
-          dto.service_place_rule === 'general'
-            ? null
-            : (dto.service_place_rule ?? null),
-        place_of_supply_country: dto.place_of_supply_country ?? null,
-        eu_vat_facts:
-          dto.eu_vat_facts == null ? null : JSON.stringify(dto.eu_vat_facts),
-        ai_confidence: dto.ai_confidence ?? null,
-        ai_document_type: dto.ai_document_type ?? null,
-        ai_kind: dto.ai_kind ?? null,
+        ...createExpenseFacts(dto),
         status: 'draft',
         voucher_id: null,
         created_at: now,
@@ -278,20 +378,23 @@ export class ExpensesService {
     // only once the expense really exists (audit_log is append-only, ADR-0026,
     // so a speculative entry could not be taken back).
     if (duplicate) {
-      await this.auditLog.record({
-        actor: 'operator',
-        action: 'expense.duplicate_guard.override',
-        outcome: 'allowed',
-        target_type: 'expense',
-        target_id: result.id,
-        detail: {
-          duplicate_of_expense_id: duplicate.existingExpenseId,
-          matched_on: duplicate.matchedOn,
-          supplier_id: dto.supplier_id ?? null,
-          supplier_invoice_number: dto.supplier_invoice_number ?? null,
-          reason: duplicate.reason,
+      await this.auditLog.record(
+        {
+          actor: 'operator',
+          action: 'expense.duplicate_guard.override',
+          outcome: 'allowed',
+          target_type: 'expense',
+          target_id: result.id,
+          detail: {
+            duplicate_of_expense_id: duplicate.existingExpenseId,
+            matched_on: duplicate.matchedOn,
+            supplier_id: dto.supplier_id ?? null,
+            supplier_invoice_number: dto.supplier_invoice_number ?? null,
+            reason: duplicate.reason,
+          },
         },
-      });
+        executor,
+      );
     }
 
     return this.mapRow(result);

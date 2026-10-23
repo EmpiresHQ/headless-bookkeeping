@@ -213,14 +213,17 @@ describe('TxCreateExpense', () => {
         matchId: 88,
       }),
     );
-    expect(api.createExpense).toHaveBeenCalledWith({
-      category: 'meals',
-      gross_amount: 1860,
-      vat_amount: 0, // no receipt → no deductible input VAT
-      currency: 'EUR',
-      tax_point_date: '2026-06-27',
-      supplier_id: null,
-    });
+    expect(api.createExpense).toHaveBeenCalledWith(
+      {
+        category: 'meals',
+        gross_amount: 1860,
+        vat_amount: 0, // no receipt → no deductible input VAT
+        currency: 'EUR',
+        tax_point_date: '2026-06-27',
+        supplier_id: null,
+      },
+      expect.any(String),
+    );
   });
 
   it('resumes a landed expense after a failed post: locked facts, link + status, no second create (#251)', async () => {

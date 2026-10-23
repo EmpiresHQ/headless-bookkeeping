@@ -290,14 +290,17 @@ describe('TxScreen state composition', () => {
     );
     fireEvent.click(await screen.findByText('Bank fee'));
     await waitFor(() =>
-      expect(api.createExpense).toHaveBeenCalledWith({
-        category: 'bank fee',
-        gross_amount: 800,
-        vat_amount: 0,
-        currency: 'EUR',
-        tax_point_date: '2026-06-27',
-        supplier_id: null,
-      }),
+      expect(api.createExpense).toHaveBeenCalledWith(
+        {
+          category: 'bank fee',
+          gross_amount: 800,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-06-27',
+          supplier_id: null,
+        },
+        expect.any(String),
+      ),
     );
   });
 

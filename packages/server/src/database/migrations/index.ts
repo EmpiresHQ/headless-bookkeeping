@@ -87,6 +87,8 @@ import * as m085 from './085_add_expense_place_of_supply_facts';
 import * as m086 from './086_add_bank_transaction_fx_rate_decimals';
 import * as m087 from './087_canonical_bank_journal';
 
+import * as m089 from './089_create_expense_create_operation';
+
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
   '002_create_account': m002,
@@ -174,4 +176,5 @@ export const migrations: Record<string, Migration> = {
   '086_add_bank_transaction_fx_rate_decimals': m086,
   '087_canonical_bank_journal': m087,
   '088_add_expense_eu_vat_facts': m088,
+  '089_create_expense_create_operation': m089,
 };

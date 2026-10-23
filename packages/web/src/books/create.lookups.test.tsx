@@ -92,6 +92,7 @@ describe('create sheets — reference-data states (#260)', () => {
     await waitFor(() =>
       expect(createExpense).toHaveBeenCalledWith(
         expect.objectContaining({ category: 'fuel', supplier_id: null }),
+        expect.any(String),
       ),
     );
   });

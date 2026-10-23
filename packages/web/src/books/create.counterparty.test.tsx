@@ -162,6 +162,7 @@ describe('manual create — find or add the counterparty in the form (#263)', ()
     await waitFor(() =>
       expect(createExpense).toHaveBeenCalledWith(
         expect.objectContaining({ supplier_id: 7, gross_amount: 4820 }),
+        expect.any(String),
       ),
     );
   });
@@ -217,6 +218,7 @@ describe('manual create — find or add the counterparty in the form (#263)', ()
     await waitFor(() =>
       expect(createExpense).toHaveBeenCalledWith(
         expect.objectContaining({ supplier_id: 42, category: 'fuel' }),
+        expect.any(String),
       ),
     );
     await screen.findByText('EXP DETAIL');
@@ -328,6 +330,7 @@ describe('manual create — find or add the counterparty in the form (#263)', ()
     await waitFor(() =>
       expect(createExpense).toHaveBeenCalledWith(
         expect.objectContaining({ supplier_id: 42 }),
+        expect.any(String),
       ),
     );
     expect(onboardEntity).toHaveBeenCalledTimes(1);

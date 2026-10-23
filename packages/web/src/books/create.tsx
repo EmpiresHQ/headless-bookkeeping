@@ -2,6 +2,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createExpense, createInvoice } from '../api';
+import {
+  newExpenseCreateOperation,
+  type ExpenseCreateOperation,
+} from './expenseCreateOperation';
 import { HttpError } from '../auth';
 import { STANDARD_VAT_RATE_PCT } from '../bank/format';
 import {
@@ -180,7 +184,10 @@ export function NewExpenseSheet({
   // Attempts of ONE draft share a receipt (a retry supersedes a failure);
   // a created draft closes the series.
   const series = useRef(0);
+  const createOperation = useRef<ExpenseCreateOperation | null>(null);
+  const [createUnconfirmed, setCreateUnconfirmed] = useState(false);
   const busy = op.pending;
+  const createLocked = createOperation.current !== null;
   const guard = useUnsavedChanges({
     label: 'New expense',
     active: open,
@@ -203,13 +210,14 @@ export function NewExpenseSheet({
     category !== '' &&
     categories !== undefined &&
     !categories.some((c) => c.key === category);
-  const blocker =
-    lookupBlocker(categoriesQ, 'categories') ??
-    (categories?.length === 0 ? NO_CATEGORIES : null) ??
-    (categoryGone
-      ? 'The chosen category is no longer available — choose again.'
-      : null) ??
-    supplier.blocker;
+  const blocker = createLocked
+    ? null
+    : (lookupBlocker(categoriesQ, 'categories') ??
+      (categories?.length === 0 ? NO_CATEGORIES : null) ??
+      (categoryGone
+        ? 'The chosen category is no longer available — choose again.'
+        : null) ??
+      supplier.blocker);
 
   // Field feedback (issue #265): the submit is disabled only by the
   // structural blocker above; a field problem is shown at the field.
@@ -221,6 +229,7 @@ export function NewExpenseSheet({
     date,
   };
   const v = useFormErrors({
+    off: createLocked,
     values: fieldValues,
     errors: {
       category: category === '' ? 'Choose a category' : null,
@@ -261,7 +270,10 @@ export function NewExpenseSheet({
     let accepted = false;
     const started = op.run(
       async (ctx) => {
-        const created = await createExpense(req);
+        const operation = (createOperation.current ??=
+          newExpenseCreateOperation(req));
+        const created = await createExpense(operation.input, operation.key);
+        setCreateUnconfirmed(false);
         accepted = true;
         series.current += 1;
         ctx.check();
@@ -294,13 +306,17 @@ export function NewExpenseSheet({
         onError: (e) => {
           toastErr(errorMessage(e));
           if (accepted) return;
+          const refused =
+            e instanceof HttpError && e.status >= 400 && e.status < 500;
+          setCreateUnconfirmed(!refused);
+          if (refused) createOperation.current = null;
           // Input is kept; whether the server created it is unknown. A
           // refusal is also stated in the form, at the field it names.
           v.failed(e, sent, createFailureHeading(e, 'draft expense'));
           receipt(key, {
             action: 'New expense',
             title: 'Draft expense',
-            outcome: `Creating the draft was not confirmed (${errorMessage(e)}). Your input is still in the form — check Books before creating it again, in case it was stored.`,
+            outcome: `Creating the draft was not confirmed (${errorMessage(e)}). Retry in this form uses the same saved facts and operation, so it cannot create another draft. After closing or reloading, check Books before starting a separate expense.`,
             tone: 'error',
             links: [{ label: 'Books', to: '/books?seg=expenses' }],
           });
@@ -320,86 +336,104 @@ export function NewExpenseSheet({
     >
       <SubmitForm onSubmit={submit}>
         <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
-          <div>
-            <Field
-              label="Category"
-              required
-              error={
-                categoryGone
-                  ? 'This category is no longer available — choose again'
-                  : categories?.length === 0
-                    ? NO_CATEGORIES
-                    : v.error('category')
-              }
-            >
-              <SelectInput
-                {...v.bind('category')}
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="">
-                  {categories === undefined
-                    ? lookupState(categoriesQ) === 'loading'
-                      ? 'Loading categories…'
-                      : 'Categories unavailable'
-                    : categories.length === 0
-                      ? 'No categories defined'
-                      : '— select —'}
-                </option>
-                {categoryGone && (
-                  <option value={category}>{category} (not available)</option>
-                )}
-                {(categories ?? []).map((c) => (
-                  <option key={c.key} value={c.key}>
-                    {c.label}
-                  </option>
-                ))}
-              </SelectInput>
-            </Field>
-            <LookupNotice query={categoriesQ} what="categories" />
-          </div>
-          <CounterpartyField
-            cp={supplier}
-            hint="Optional — leave it unpicked for none; unknown suppliers can be resolved later"
-            busy={op.pending && running === 'counterparty'}
-            focusId={v.idOf('supplier')}
-            error={v.error('supplier')}
-          />
-          <Field label="Gross (€)" required error={v.error('gross')}>
-            <TextInput
-              {...v.bind('gross')}
-              inputMode="decimal"
-              value={m.gross}
-              onChange={(e) => m.setGross(e.target.value)}
-            />
-          </Field>
-          <Field
-            label="VAT (€)"
-            required
-            error={v.error('vat')}
-            hint={vatHint(
-              m,
-              `Auto at ${STANDARD_VAT_RATE_PCT}% — edit if the receipt says otherwise`,
-            )}
+          {createUnconfirmed && (
+            <p role="status" className="text-[13px] text-warn">
+              Creation was not confirmed. Retry sends the same saved facts; the
+              fields stay locked. For a separate purchase, close this form and
+              start New expense.
+            </p>
+          )}
+          {createLocked && !createUnconfirmed && !busy && (
+            <p role="status" className="text-[13px] text-ink-2">
+              Creation was confirmed. Retry returns the same expense; close this
+              form to start a separate purchase.
+            </p>
+          )}
+          <fieldset
+            disabled={createLocked}
+            className="m-0 min-w-0 space-y-3 border-0 p-0"
           >
-            <TextInput
-              {...v.bind('vat')}
-              inputMode="decimal"
-              value={m.draft.vat}
-              onChange={(e) => {
-                m.setVatTouched(true);
-                m.setVat(e.target.value);
-              }}
+            <div>
+              <Field
+                label="Category"
+                required
+                error={
+                  categoryGone
+                    ? 'This category is no longer available — choose again'
+                    : categories?.length === 0
+                      ? NO_CATEGORIES
+                      : v.error('category')
+                }
+              >
+                <SelectInput
+                  {...v.bind('category')}
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  <option value="">
+                    {categories === undefined
+                      ? lookupState(categoriesQ) === 'loading'
+                        ? 'Loading categories…'
+                        : 'Categories unavailable'
+                      : categories.length === 0
+                        ? 'No categories defined'
+                        : '— select —'}
+                  </option>
+                  {categoryGone && (
+                    <option value={category}>{category} (not available)</option>
+                  )}
+                  {(categories ?? []).map((c) => (
+                    <option key={c.key} value={c.key}>
+                      {c.label}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+              <LookupNotice query={categoriesQ} what="categories" />
+            </div>
+            <CounterpartyField
+              cp={supplier}
+              hint="Optional — leave it unpicked for none; unknown suppliers can be resolved later"
+              busy={op.pending && running === 'counterparty'}
+              focusId={v.idOf('supplier')}
+              error={v.error('supplier')}
             />
-          </Field>
-          <Field label="Tax point date" required error={v.error('date')}>
-            <TextInput
-              {...v.bind('date')}
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </Field>
+            <Field label="Gross (€)" required error={v.error('gross')}>
+              <TextInput
+                {...v.bind('gross')}
+                inputMode="decimal"
+                value={m.gross}
+                onChange={(e) => m.setGross(e.target.value)}
+              />
+            </Field>
+            <Field
+              label="VAT (€)"
+              required
+              error={v.error('vat')}
+              hint={vatHint(
+                m,
+                `Auto at ${STANDARD_VAT_RATE_PCT}% — edit if the receipt says otherwise`,
+              )}
+            >
+              <TextInput
+                {...v.bind('vat')}
+                inputMode="decimal"
+                value={m.draft.vat}
+                onChange={(e) => {
+                  m.setVatTouched(true);
+                  m.setVat(e.target.value);
+                }}
+              />
+            </Field>
+            <Field label="Tax point date" required error={v.error('date')}>
+              <TextInput
+                {...v.bind('date')}
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </Field>
+          </fieldset>
           <FormErrorSummary form={v} blocked={blocker !== null} />
           <Button
             className="w-full"

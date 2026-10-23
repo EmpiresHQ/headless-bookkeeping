@@ -42,7 +42,12 @@ const json = ({ status, body }: Reply) =>
   new Response(JSON.stringify(body), { status });
 
 /** Held writes: each POST waits until the test answers it. */
-let held: { url: string; body: unknown; answer: (r: Reply) => void }[] = [];
+let held: {
+  url: string;
+  body: unknown;
+  key: string | null;
+  answer: (r: Reply) => void;
+}[] = [];
 let failNextGet401 = false;
 
 function mockApi() {
@@ -53,6 +58,7 @@ function mockApi() {
       return new Promise<Response>((resolve) => {
         held.push({
           url,
+          key: new Headers(init?.headers).get('Idempotency-Key'),
           body: init?.body ? JSON.parse(String(init.body)) : null,
           answer: (r) => resolve(json(r)),
         });
@@ -218,7 +224,7 @@ describe('pending operations on the production routes (#251)', () => {
     expect(after.defaultPrevented).toBe(false);
   });
 
-  it('a failure unlocks with the values kept and still guarded; one deliberate retry succeeds', async () => {
+  it('an unconfirmed failure keeps facts locked and guarded; retry reuses the create operation', async () => {
     const router = renderAt(['/books']);
     await fillNewExpense();
     (await submitHeld()).answer({
@@ -226,7 +232,7 @@ describe('pending operations on the production routes (#251)', () => {
       body: { message: 'Fixture unavailable' },
     });
     await waitFor(() => expect(createButton()).not.toBeDisabled());
-    expect(screen.getByLabelText('Gross (€)')).not.toBeDisabled();
+    expect(screen.getByLabelText('Gross (€)')).toBeDisabled();
     expect(screen.getByLabelText('Gross (€)')).toHaveValue('123.45');
     expect(path(router)).toBe('/books');
 
@@ -238,6 +244,8 @@ describe('pending operations on the production routes (#251)', () => {
 
     fireEvent.click(createButton());
     await waitFor(() => expect(held).toHaveLength(2));
+    expect(held[0].key).toEqual(expect.any(String));
+    expect(held[1]).toMatchObject({ key: held[0].key, body: held[0].body });
     await act(async () =>
       held[1].answer({ status: 200, body: { ...expense(25), id: 25 } }),
     );

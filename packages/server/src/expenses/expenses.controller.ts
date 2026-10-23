@@ -8,9 +8,11 @@ import {
   Body,
   ParseIntPipe,
   Query,
+  Headers,
 } from '@nestjs/common';
 import {
   ApiQuery,
+  ApiHeader,
   ApiTags,
   ApiOperation,
   ApiParam,
@@ -45,10 +47,19 @@ export class ExpensesController {
   @ApiOperation({
     summary: 'Create an expense',
     description:
-      'Creates an expense and runs the posting pipeline (AI -> Rules -> Policy -> Voucher); may yield a draft requiring approval. 409 if the target reporting period is locked.',
+      'Creates a draft expense. Optional Idempotency-Key replays the original create response for the same facts; different facts with that key return 409. Posting is a separate action.',
   })
-  async createExpense(@Body() dto: CreateExpenseDto): Promise<Expense> {
-    return this.expensesService.createExpense(dto);
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: false,
+    description:
+      'One create operation; 1–128 ASCII letters/digits or ._:-. Reuse only with the same facts.',
+  })
+  async createExpense(
+    @Body() dto: CreateExpenseDto,
+    @Headers('idempotency-key') operationKey?: string,
+  ): Promise<Expense> {
+    return this.expensesService.createExpense(dto, operationKey);
   }
 
   @Get()

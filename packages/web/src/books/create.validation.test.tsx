@@ -175,6 +175,7 @@ describe('manual Books forms — field validation (#265)', () => {
     await waitFor(() => expect(createExpense).toHaveBeenCalledTimes(1));
     expect(createExpense).toHaveBeenCalledWith(
       expect.objectContaining({ gross_amount: 4820, vat_amount: 869 }),
+      expect.any(String),
     );
   });
 

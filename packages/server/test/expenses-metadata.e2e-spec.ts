@@ -17,6 +17,8 @@ import { PostingService } from '../src/ledger/posting/posting.service';
 import { ReportingPeriodsService } from '../src/reporting-periods/reporting-periods.service';
 import { CategoryService } from '../src/categories/category.service';
 import { CorrectionsService } from '../src/corrections/corrections.service';
+import { AuditLogService } from '../src/audit-log/audit-log.service';
+import { ZodValidationPipe } from '../src/common/pipes/zod-validation.pipe';
 import { Expense } from '../src/expenses/types';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -71,7 +73,9 @@ describe('Expenses document-metadata PATCH E2E', () => {
       .compile();
 
     app = module.createNestApplication();
+    app.useGlobalPipes(new ZodValidationPipe());
     await app.init();
+    await app.listen(0, '127.0.0.1');
 
     token = 'test-token-expenses-metadata-12345';
     const tokenHash = createHash('sha256').update(token).digest('hex');
@@ -85,6 +89,168 @@ describe('Expenses document-metadata PATCH E2E', () => {
     await app.close();
     await db.destroy();
     rmSync(root, { recursive: true, force: true });
+  });
+
+  describe('Expense create operation keys (#420)', () => {
+    const facts = {
+      category: 'software',
+      gross_amount: 4303,
+      vat_amount: 0,
+      currency: 'EUR',
+      tax_point_date: '2026-09-10',
+    };
+    const create = (key?: string, body: object = facts) => {
+      const r = request(app.getHttpServer())
+        .post('/api/expenses')
+        .set('Authorization', `Bearer ${token}`);
+      return (key === undefined ? r : r.set('Idempotency-Key', key)).send(body);
+    };
+    const count = async (
+      table: 'expense' | 'expense_create_operation' | 'audit_log',
+    ) =>
+      (
+        await db
+          .selectFrom(table)
+          .select((eb) => eb.fn.countAll<number>().as('n'))
+          .executeTakeFirstOrThrow()
+      ).n;
+
+    it('replays the original response for explicit and concurrent retries with one persisted Expense', async () => {
+      const responses = await Promise.all(
+        Array.from({ length: 8 }, () => create('same-create').expect(201)),
+      );
+      for (const r of responses) expect(r.body).toEqual(responses[0].body);
+      expect(await count('expense')).toBe(1);
+      expect(await count('expense_create_operation')).toBe(1);
+      expect((await create('same-create').expect(201)).body).toEqual(
+        responses[0].body,
+      );
+    });
+
+    it('conflicts on changed facts, including concurrent changed-payload claims', async () => {
+      const outcomes = await Promise.all([
+        create('racing-facts', facts),
+        create('racing-facts', { ...facts, gross_amount: 9900 }),
+      ]);
+      expect(outcomes.map((r) => r.status).sort()).toEqual([201, 409]);
+      expect(await count('expense')).toBe(1);
+      expect(await count('expense_create_operation')).toBe(1);
+      expect(outcomes.find((r) => r.status === 409)?.body.message).toContain(
+        'different expense facts',
+      );
+    });
+
+    it('normalizes optional insert defaults and request object order', async () => {
+      const first = await create('normalized').expect(201);
+      const replay = await create('normalized', {
+        ...facts,
+        supplier_id: null,
+        document_id: null,
+        service_place_rule: 'general',
+        allow_duplicate: false,
+      }).expect(201);
+      expect(replay.body).toEqual(first.body);
+      expect(await count('expense')).toBe(1);
+    });
+
+    it('allows separate keys and legacy no-key calls for identical supplier-less facts', async () => {
+      const rows = await Promise.all([
+        create('separate-one'),
+        create('separate-two'),
+        create(),
+        create(),
+      ]);
+      expect(rows.map((r) => r.status)).toEqual([201, 201, 201, 201]);
+      expect(new Set(rows.map((r) => r.body.id)).size).toBe(4);
+      expect(await count('expense')).toBe(4);
+      expect(await count('expense_create_operation')).toBe(2);
+    });
+
+    it('replays draft creation after real posting without posting another voucher', async () => {
+      const original = await create('posted-create').expect(201);
+      const expenses = app.get(ExpensesService);
+      const draft = await expenses.generateDraftVoucher(original.body.id);
+      const posted = await app.get(PostingService).postVoucher(draft);
+      await expenses.updateExpenseStatus(original.body.id, 'posted', posted.id);
+      expect((await create('posted-create').expect(201)).body).toEqual(
+        original.body,
+      );
+      expect((await expenses.getExpenseById(original.body.id)).status).toBe(
+        'posted',
+      );
+      expect(
+        await db.selectFrom('voucher').select('id').execute(),
+      ).toHaveLength(1);
+    });
+
+    it('keeps the original create snapshot after edits and deletion, without resurrection', async () => {
+      const original = await create('historic-create').expect(201);
+      const expenses = app.get(ExpensesService);
+      await expenses.updateDraft(original.body.id, { gross_amount: 9000 });
+      expect((await create('historic-create').expect(201)).body).toEqual(
+        original.body,
+      );
+      expect(
+        (await expenses.getExpenseById(original.body.id)).gross_amount,
+      ).toBe(9000);
+      await expenses.deleteDraft(original.body.id);
+      expect((await create('historic-create').expect(201)).body).toEqual(
+        original.body,
+      );
+      expect(await count('expense')).toBe(0);
+      expect(await count('expense_create_operation')).toBe(1);
+    });
+
+    it('retains the purchase duplicate guard and rolls back failed create/key/override audit together', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const supplier = await db
+        .insertInto('entity')
+        .values({
+          role: 'supplier',
+          country: 'IE',
+          name: 'Synthetic #420 supplier',
+          created_at: now,
+          updated_at: now,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      const input = {
+        ...facts,
+        supplier_id: supplier.id,
+        supplier_invoice_number: 'QA420-1',
+      };
+      await create(undefined, input).expect(201);
+      await create('refused-duplicate', input).expect(409);
+      expect(await count('expense_create_operation')).toBe(0);
+      const audit = app.get(AuditLogService);
+      const fail = jest
+        .spyOn(audit, 'record')
+        .mockRejectedValueOnce(new Error('synthetic audit failure'));
+      await create('override-create', {
+        ...input,
+        allow_duplicate: true,
+      }).expect(500);
+      fail.mockRestore();
+      expect(await count('expense')).toBe(1);
+      expect(await count('expense_create_operation')).toBe(0);
+      const override = { ...input, allow_duplicate: true };
+      const accepted = await create('override-create', override).expect(201);
+      const auditCount = await count('audit_log');
+      expect(
+        (await create('override-create', override).expect(201)).body,
+      ).toEqual(accepted.body);
+      expect(await count('audit_log')).toBe(auditCount);
+      expect(await count('expense')).toBe(2);
+      expect(await count('expense_create_operation')).toBe(1);
+    });
+
+    it('rejects invalid key syntax and invalid create bodies without storing a claim', async () => {
+      await create('bad key').expect(400);
+      await create('x'.repeat(129)).expect(400);
+      await create('valid-key', { ...facts, gross_amount: -1 }).expect(400);
+      expect(await count('expense')).toBe(0);
+      expect(await count('expense_create_operation')).toBe(0);
+    });
   });
 
   async function seedPostedExpense(

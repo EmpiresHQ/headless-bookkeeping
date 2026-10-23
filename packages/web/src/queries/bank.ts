@@ -1,3 +1,7 @@
+import {
+  newExpenseCreateOperation,
+  type ExpenseCreateOperation,
+} from '../books/expenseCreateOperation';
 import { useQueries, useQuery, type QueryClient } from '@tanstack/react-query';
 import {
   getAdvanceVatTreatments,
@@ -370,6 +374,7 @@ export type CreateFromLineResult =
  * staged again.
  */
 export interface FromLineProgress {
+  createOperation?: ExpenseCreateOperation;
   expenseId: number | null;
   posted: { held: false } | { held: true; reason: string } | null;
   stagedMatchIds: number[] | null;
@@ -410,14 +415,27 @@ export async function createExpenseFromLine(
     );
   }
   if (progress.expenseId === null) {
-    const expense = await createExpense({
+    const operation = (progress.createOperation ??= newExpenseCreateOperation({
       category: input.category,
       gross_amount: input.grossCents,
       vat_amount: input.vatCents,
       currency: input.currency,
       tax_point_date: input.taxPointDate,
       supplier_id: input.supplierId,
-    });
+    }));
+    let expense;
+    try {
+      expense = await createExpense(operation.input, operation.key);
+    } catch (error) {
+      if (
+        error instanceof HttpError &&
+        error.status >= 400 &&
+        error.status < 500
+      )
+        delete progress.createOperation;
+      throw error;
+    }
+    delete progress.createOperation;
     progress.expenseId = expense.id;
     landed();
   }

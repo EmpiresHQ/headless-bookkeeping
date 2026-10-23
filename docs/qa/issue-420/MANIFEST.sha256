@@ -1,0 +1,16 @@
+283a914c441942c5b06e728436de8d704734ace1f509bb1960cf9026611137e5  AGENT_API_GUIDE.md
+75a751deb339ba4aa00aa69656c907e4b8a87f83e2a0da4a915c24db16c6f988  docs/adr/0040-specialized-client-operation-lifecycles.md
+83a3f8dc2ccf1339119ecc3efae7b7012b83dc870ad60679b4ca51717fa69765  docs/qa/issue-420/B1-empty-response.png
+ed05209329d2cbf40a18394c4981ccc63ca29cf0fc5c5c09f1d2fc920b6b8ab5  docs/qa/issue-420/B2-explicit-retry-unknown.png
+f3f717c6b59f1b5162244c48489390f2c491a376d655859e8b16a63d96e551ac  docs/qa/issue-420/B2-explicit-retry.png
+32dff1b7d3ca48fa92948381684481095ba023322db156fa9237314a085afd05  docs/qa/issue-420/N1-empty-response.png
+14ec2cccc2dabe983e437c09de29ea17b2d7be80a71654c1a91ddb5581a98659  docs/qa/issue-420/N2-explicit-retry-unknown.png
+08ed9f9eb04726a57d9b0f73e01abc8794bc1fc9adfe8914361636887213de84  docs/qa/issue-420/N2-explicit-retry.png
+bf34f2f26be4d042f2a29da2bf85364992a455655556f1a6e3841b1788f522a4  docs/qa/issue-420/README.md
+7bb7770fe4a4f27fb124109c5aaa65d1c2b5a1124d080f55db1adce7d80ba312  docs/qa/issue-420/audit.cjs
+a44e3a863316aa908080be0aa7c81e74b62b13b7c756db7c5b940b44765a6c93  docs/qa/issue-420/audit.json
+bc9c233b21811d87e388f5adffde192447508ec9a8cbf0ae0ac925c0a8322a23  docs/qa/issue-420/backend.cjs
+bc6f2b52e9563e297d09adcfa462bcecd330038757a915dac1024f6ec541c380  docs/qa/issue-420/browser.cjs
+e48d7d4b7a88a221d7050b05359df3b63d5d7c058934832cdc58655e8a98a2ed  docs/qa/issue-420/build.json
+6a35e0f446de01ae9afa18476777042003b97e5b5288bc8117d30275d4130fed  docs/qa/issue-420/proxy.cjs
+32a720dd3a13b13155bf51924b98ae8121b12098f81d8b4da990f4af09edd9cb  docs/qa/issue-420/results.json
