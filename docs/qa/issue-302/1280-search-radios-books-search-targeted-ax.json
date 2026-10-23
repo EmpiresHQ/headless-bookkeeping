@@ -1,0 +1,1694 @@
+[
+  {
+    "id": "2",
+    "role": "RootWebArea",
+    "name": "Bookkeeping",
+    "properties": {
+      "focusable": true,
+      "focused": true,
+      "url": "http://127.0.0.1:5302/books?q=SYNTHETIC"
+    },
+    "children": [
+      "15"
+    ]
+  },
+  {
+    "id": "58",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "3",
+      "304"
+    ]
+  },
+  {
+    "id": "59",
+    "role": "complementary",
+    "name": "",
+    "properties": {},
+    "children": [
+      "60",
+      "68",
+      "96"
+    ]
+  },
+  {
+    "id": "97",
+    "role": "main",
+    "name": "",
+    "properties": {},
+    "children": [
+      "98"
+    ]
+  },
+  {
+    "id": "304",
+    "role": "region",
+    "name": "Notifications alt+T",
+    "properties": {
+      "live": "polite",
+      "atomic": false,
+      "relevant": "additions text",
+      "focusable": true
+    },
+    "children": []
+  },
+  {
+    "id": "305",
+    "role": "StaticText",
+    "name": "books",
+    "properties": {},
+    "children": [
+      "-1000000002"
+    ]
+  },
+  {
+    "id": "68",
+    "role": "navigation",
+    "name": "Primary",
+    "properties": {},
+    "children": [
+      "69",
+      "74",
+      "78",
+      "86",
+      "92"
+    ]
+  },
+  {
+    "id": "96",
+    "role": "button",
+    "name": "Sign out",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "312"
+    ]
+  },
+  {
+    "id": "100",
+    "role": "heading",
+    "name": "Books",
+    "properties": {
+      "level": 1
+    },
+    "children": [
+      "313"
+    ]
+  },
+  {
+    "id": "102",
+    "role": "button",
+    "name": "Add to the books",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "103"
+    ]
+  },
+  {
+    "id": "105",
+    "role": "radiogroup",
+    "name": "Record type",
+    "properties": {
+      "required": false
+    },
+    "children": [
+      "106",
+      "109",
+      "112",
+      "115"
+    ]
+  },
+  {
+    "id": "4",
+    "role": "searchbox",
+    "name": "Search expenses",
+    "value": "SYNTHETIC",
+    "description": "Matches supplier, invoice number, category or amount.",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "focused": true,
+      "editable": "plaintext",
+      "settable": true,
+      "describedby": ":r6:"
+    },
+    "children": [
+      "120",
+      "121"
+    ]
+  },
+  {
+    "id": "125",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "321",
+      "322",
+      "323"
+    ]
+  },
+  {
+    "id": "126",
+    "role": "group",
+    "name": "",
+    "properties": {},
+    "children": [
+      "127",
+      "129"
+    ]
+  },
+  {
+    "id": "181",
+    "role": "generic",
+    "name": "",
+    "properties": {
+      "focusable": true
+    },
+    "children": [
+      "182",
+      "198",
+      "5"
+    ]
+  },
+  {
+    "id": "-1000000002",
+    "role": "InlineTextBox",
+    "name": "books",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "69",
+    "role": "link",
+    "name": "Inbox 2",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/inbox"
+    },
+    "children": [
+      "306",
+      "73"
+    ]
+  },
+  {
+    "id": "74",
+    "role": "link",
+    "name": "Books",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/books"
+    },
+    "children": [
+      "308"
+    ]
+  },
+  {
+    "id": "78",
+    "role": "link",
+    "name": "Bank",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/bank"
+    },
+    "children": [
+      "309"
+    ]
+  },
+  {
+    "id": "86",
+    "role": "link",
+    "name": "Reports",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/reports"
+    },
+    "children": [
+      "310"
+    ]
+  },
+  {
+    "id": "92",
+    "role": "link",
+    "name": "Settings",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/settings"
+    },
+    "children": [
+      "311"
+    ]
+  },
+  {
+    "id": "312",
+    "role": "StaticText",
+    "name": "Sign out",
+    "properties": {},
+    "children": [
+      "-1000000009"
+    ]
+  },
+  {
+    "id": "313",
+    "role": "StaticText",
+    "name": "Books",
+    "properties": {},
+    "children": [
+      "-1000000010"
+    ]
+  },
+  {
+    "id": "314",
+    "role": "StaticText",
+    "name": "+",
+    "properties": {},
+    "children": [
+      "-1000000011"
+    ]
+  },
+  {
+    "id": "106",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "107",
+      "108"
+    ]
+  },
+  {
+    "id": "109",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "110",
+      "111"
+    ]
+  },
+  {
+    "id": "112",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "113",
+      "114"
+    ]
+  },
+  {
+    "id": "115",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "116",
+      "117"
+    ]
+  },
+  {
+    "id": "123",
+    "role": "generic",
+    "name": "",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "320"
+    ]
+  },
+  {
+    "id": "321",
+    "role": "StaticText",
+    "name": "Matches ",
+    "properties": {},
+    "children": [
+      "-1000000017"
+    ]
+  },
+  {
+    "id": "322",
+    "role": "StaticText",
+    "name": "supplier, invoice number, category or amount",
+    "properties": {},
+    "children": [
+      "-1000000018"
+    ]
+  },
+  {
+    "id": "323",
+    "role": "StaticText",
+    "name": ".",
+    "properties": {},
+    "children": [
+      "-1000000019"
+    ]
+  },
+  {
+    "id": "131",
+    "role": "DisclosureTriangle",
+    "name": "Dates & order",
+    "properties": {
+      "focusable": true,
+      "expanded": false
+    },
+    "children": [
+      "324",
+      "325"
+    ]
+  },
+  {
+    "id": "183",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "184",
+      "186",
+      "188",
+      "190",
+      "192",
+      "194",
+      "196"
+    ]
+  },
+  {
+    "id": "198",
+    "role": "group",
+    "name": "Active filters",
+    "properties": {},
+    "children": [
+      "199",
+      "202"
+    ]
+  },
+  {
+    "id": "339",
+    "role": "StaticText",
+    "name": "OCTOBER 2026",
+    "properties": {},
+    "children": [
+      "-1000000037"
+    ]
+  },
+  {
+    "id": "340",
+    "role": "StaticText",
+    "name": "−458.01 € · 3",
+    "properties": {},
+    "children": [
+      "-1000000038"
+    ]
+  },
+  {
+    "id": "8",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "219"
+    ]
+  },
+  {
+    "id": "10",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "238"
+    ]
+  },
+  {
+    "id": "12",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "257"
+    ]
+  },
+  {
+    "id": "306",
+    "role": "StaticText",
+    "name": "Inbox",
+    "properties": {},
+    "children": [
+      "-1000000003"
+    ]
+  },
+  {
+    "id": "307",
+    "role": "StaticText",
+    "name": "2",
+    "properties": {},
+    "children": [
+      "-1000000004"
+    ]
+  },
+  {
+    "id": "308",
+    "role": "StaticText",
+    "name": "Books",
+    "properties": {},
+    "children": [
+      "-1000000005"
+    ]
+  },
+  {
+    "id": "309",
+    "role": "StaticText",
+    "name": "Bank",
+    "properties": {},
+    "children": [
+      "-1000000006"
+    ]
+  },
+  {
+    "id": "310",
+    "role": "StaticText",
+    "name": "Reports",
+    "properties": {},
+    "children": [
+      "-1000000007"
+    ]
+  },
+  {
+    "id": "311",
+    "role": "StaticText",
+    "name": "Settings",
+    "properties": {},
+    "children": [
+      "-1000000008"
+    ]
+  },
+  {
+    "id": "-1000000009",
+    "role": "InlineTextBox",
+    "name": "Sign out",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000010",
+    "role": "InlineTextBox",
+    "name": "Books",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000011",
+    "role": "InlineTextBox",
+    "name": "+",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "107",
+    "role": "radio",
+    "name": "Expenses",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "checked": "true"
+    },
+    "children": []
+  },
+  {
+    "id": "315",
+    "role": "StaticText",
+    "name": "Expenses",
+    "properties": {},
+    "children": [
+      "-1000000012"
+    ]
+  },
+  {
+    "id": "110",
+    "role": "radio",
+    "name": "Invoices",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "checked": "false"
+    },
+    "children": []
+  },
+  {
+    "id": "316",
+    "role": "StaticText",
+    "name": "Invoices",
+    "properties": {},
+    "children": [
+      "-1000000013"
+    ]
+  },
+  {
+    "id": "113",
+    "role": "radio",
+    "name": "Documents",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "checked": "false"
+    },
+    "children": []
+  },
+  {
+    "id": "317",
+    "role": "StaticText",
+    "name": "Documents",
+    "properties": {},
+    "children": [
+      "-1000000014"
+    ]
+  },
+  {
+    "id": "116",
+    "role": "radio",
+    "name": "Credit notes",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "checked": "false"
+    },
+    "children": []
+  },
+  {
+    "id": "318",
+    "role": "StaticText",
+    "name": "Credit notes",
+    "properties": {},
+    "children": [
+      "-1000000015"
+    ]
+  },
+  {
+    "id": "320",
+    "role": "StaticText",
+    "name": "SYNTHETIC",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "-1000000016"
+    ]
+  },
+  {
+    "id": "-1000000017",
+    "role": "InlineTextBox",
+    "name": "Matches ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000018",
+    "role": "InlineTextBox",
+    "name": "supplier, invoice number, category or amount",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000019",
+    "role": "InlineTextBox",
+    "name": ".",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "325",
+    "role": "StaticText",
+    "name": "Dates & order",
+    "properties": {},
+    "children": [
+      "-1000000021"
+    ]
+  },
+  {
+    "id": "184",
+    "role": "button",
+    "name": "All",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "pressed": "true"
+    },
+    "children": [
+      "185"
+    ]
+  },
+  {
+    "id": "186",
+    "role": "button",
+    "name": "Draft 1",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "pressed": "false"
+    },
+    "children": [
+      "187"
+    ]
+  },
+  {
+    "id": "188",
+    "role": "button",
+    "name": "Pending 1",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "pressed": "false"
+    },
+    "children": [
+      "189"
+    ]
+  },
+  {
+    "id": "190",
+    "role": "button",
+    "name": "Posted 1",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "pressed": "false"
+    },
+    "children": [
+      "191"
+    ]
+  },
+  {
+    "id": "192",
+    "role": "button",
+    "name": "Corrected 0",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "pressed": "false"
+    },
+    "children": [
+      "193"
+    ]
+  },
+  {
+    "id": "194",
+    "role": "button",
+    "name": "Include cancelled",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "pressed": "false"
+    },
+    "children": [
+      "195"
+    ]
+  },
+  {
+    "id": "196",
+    "role": "button",
+    "name": "📎 No document 3",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "pressed": "false"
+    },
+    "children": [
+      "197"
+    ]
+  },
+  {
+    "id": "199",
+    "role": "paragraph",
+    "name": "",
+    "properties": {},
+    "children": [
+      "334",
+      "335",
+      "201",
+      "7"
+    ]
+  },
+  {
+    "id": "202",
+    "role": "button",
+    "name": "Reset filters, search, dates and order",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "203"
+    ]
+  },
+  {
+    "id": "-1000000037",
+    "role": "InlineTextBox",
+    "name": "OCTOBER 2026",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000038",
+    "role": "InlineTextBox",
+    "name": "−458.01 € · 3",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "219",
+    "role": "link",
+    "name": "SYNTHETIC302 Supplier software Invoice no. SYN-302-003 23 Oct 📎 no document −234.56 € pending",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/books/expenses/3"
+    },
+    "children": [
+      "220"
+    ]
+  },
+  {
+    "id": "238",
+    "role": "link",
+    "name": "SYNTHETIC302 Supplier software Invoice no. SYN-302-EDIT-1280 23 Oct 📎 no document −123.45 € draft",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/books/expenses/2"
+    },
+    "children": [
+      "239"
+    ]
+  },
+  {
+    "id": "257",
+    "role": "link",
+    "name": "SYNTHETIC302 Supplier software Invoice no. SYN-302-001 23 Oct 📎 no document −100.00 € posted",
+    "properties": {
+      "focusable": true,
+      "url": "http://127.0.0.1:5302/books/expenses/1"
+    },
+    "children": [
+      "258"
+    ]
+  },
+  {
+    "id": "-1000000003",
+    "role": "InlineTextBox",
+    "name": "Inbox",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000004",
+    "role": "InlineTextBox",
+    "name": "2",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000005",
+    "role": "InlineTextBox",
+    "name": "Books",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000006",
+    "role": "InlineTextBox",
+    "name": "Bank",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000007",
+    "role": "InlineTextBox",
+    "name": "Reports",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000008",
+    "role": "InlineTextBox",
+    "name": "Settings",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000012",
+    "role": "InlineTextBox",
+    "name": "Expenses",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000013",
+    "role": "InlineTextBox",
+    "name": "Invoices",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000014",
+    "role": "InlineTextBox",
+    "name": "Documents",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000015",
+    "role": "InlineTextBox",
+    "name": "Credit notes",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000016",
+    "role": "InlineTextBox",
+    "name": "SYNTHETIC",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": []
+  },
+  {
+    "id": "-1000000021",
+    "role": "InlineTextBox",
+    "name": "Dates & order",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "326",
+    "role": "StaticText",
+    "name": "All",
+    "properties": {},
+    "children": [
+      "-1000000022"
+    ]
+  },
+  {
+    "id": "327",
+    "role": "StaticText",
+    "name": "Draft 1",
+    "properties": {},
+    "children": [
+      "-1000000023"
+    ]
+  },
+  {
+    "id": "328",
+    "role": "StaticText",
+    "name": "Pending 1",
+    "properties": {},
+    "children": [
+      "-1000000024"
+    ]
+  },
+  {
+    "id": "329",
+    "role": "StaticText",
+    "name": "Posted 1",
+    "properties": {},
+    "children": [
+      "-1000000025"
+    ]
+  },
+  {
+    "id": "330",
+    "role": "StaticText",
+    "name": "Corrected 0",
+    "properties": {},
+    "children": [
+      "-1000000026"
+    ]
+  },
+  {
+    "id": "331",
+    "role": "StaticText",
+    "name": "Include cancelled",
+    "properties": {},
+    "children": [
+      "-1000000027"
+    ]
+  },
+  {
+    "id": "332",
+    "role": "StaticText",
+    "name": "📎 No document ",
+    "properties": {},
+    "children": [
+      "-1000000028"
+    ]
+  },
+  {
+    "id": "333",
+    "role": "StaticText",
+    "name": "3",
+    "properties": {},
+    "children": [
+      "-1000000029"
+    ]
+  },
+  {
+    "id": "334",
+    "role": "StaticText",
+    "name": "Showing 3 of 6 expenses · total −458.01 €",
+    "properties": {},
+    "children": [
+      "-1000000030"
+    ]
+  },
+  {
+    "id": "335",
+    "role": "StaticText",
+    "name": " · ",
+    "properties": {},
+    "children": [
+      "-1000000031"
+    ]
+  },
+  {
+    "id": "201",
+    "role": "generic",
+    "name": "",
+    "description": "SYNTHETIC",
+    "properties": {},
+    "children": [
+      "336",
+      "337",
+      "6"
+    ]
+  },
+  {
+    "id": "7",
+    "role": "StaticText",
+    "name": " in supplier, invoice number, category or amount",
+    "properties": {},
+    "children": [
+      "-1000000035"
+    ]
+  },
+  {
+    "id": "338",
+    "role": "StaticText",
+    "name": "Reset",
+    "properties": {},
+    "children": [
+      "-1000000036"
+    ]
+  },
+  {
+    "id": "222",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "348"
+    ]
+  },
+  {
+    "id": "349",
+    "role": "StaticText",
+    "name": "software",
+    "properties": {},
+    "children": [
+      "-1000000041"
+    ]
+  },
+  {
+    "id": "351",
+    "role": "StaticText",
+    "name": "Invoice no.",
+    "properties": {},
+    "children": [
+      "-1000000042"
+    ]
+  },
+  {
+    "id": "352",
+    "role": "StaticText",
+    "name": "SYN-302-003",
+    "properties": {},
+    "children": [
+      "-1000000043"
+    ]
+  },
+  {
+    "id": "354",
+    "role": "StaticText",
+    "name": "23 Oct",
+    "properties": {},
+    "children": [
+      "-1000000044"
+    ]
+  },
+  {
+    "id": "356",
+    "role": "StaticText",
+    "name": "📎 no document",
+    "properties": {},
+    "children": [
+      "-1000000045"
+    ]
+  },
+  {
+    "id": "357",
+    "role": "StaticText",
+    "name": "−234.56",
+    "properties": {},
+    "children": [
+      "-1000000046"
+    ]
+  },
+  {
+    "id": "358",
+    "role": "StaticText",
+    "name": " ",
+    "properties": {},
+    "children": [
+      "-1000000047"
+    ]
+  },
+  {
+    "id": "359",
+    "role": "StaticText",
+    "name": "€",
+    "properties": {},
+    "children": [
+      "-1000000048"
+    ]
+  },
+  {
+    "id": "235",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "360"
+    ]
+  },
+  {
+    "id": "241",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "362"
+    ]
+  },
+  {
+    "id": "363",
+    "role": "StaticText",
+    "name": "software",
+    "properties": {},
+    "children": [
+      "-1000000052"
+    ]
+  },
+  {
+    "id": "365",
+    "role": "StaticText",
+    "name": "Invoice no.",
+    "properties": {},
+    "children": [
+      "-1000000053"
+    ]
+  },
+  {
+    "id": "366",
+    "role": "StaticText",
+    "name": "SYN-302-EDIT-1280",
+    "properties": {},
+    "children": [
+      "-1000000054"
+    ]
+  },
+  {
+    "id": "368",
+    "role": "StaticText",
+    "name": "23 Oct",
+    "properties": {},
+    "children": [
+      "-1000000055"
+    ]
+  },
+  {
+    "id": "370",
+    "role": "StaticText",
+    "name": "📎 no document",
+    "properties": {},
+    "children": [
+      "-1000000056"
+    ]
+  },
+  {
+    "id": "371",
+    "role": "StaticText",
+    "name": "−123.45",
+    "properties": {},
+    "children": [
+      "-1000000057"
+    ]
+  },
+  {
+    "id": "372",
+    "role": "StaticText",
+    "name": " ",
+    "properties": {},
+    "children": [
+      "-1000000058"
+    ]
+  },
+  {
+    "id": "373",
+    "role": "StaticText",
+    "name": "€",
+    "properties": {},
+    "children": [
+      "-1000000059"
+    ]
+  },
+  {
+    "id": "254",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "374"
+    ]
+  },
+  {
+    "id": "260",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "376"
+    ]
+  },
+  {
+    "id": "377",
+    "role": "StaticText",
+    "name": "software",
+    "properties": {},
+    "children": [
+      "-1000000063"
+    ]
+  },
+  {
+    "id": "379",
+    "role": "StaticText",
+    "name": "Invoice no.",
+    "properties": {},
+    "children": [
+      "-1000000064"
+    ]
+  },
+  {
+    "id": "380",
+    "role": "StaticText",
+    "name": "SYN-302-001",
+    "properties": {},
+    "children": [
+      "-1000000065"
+    ]
+  },
+  {
+    "id": "382",
+    "role": "StaticText",
+    "name": "23 Oct",
+    "properties": {},
+    "children": [
+      "-1000000066"
+    ]
+  },
+  {
+    "id": "384",
+    "role": "StaticText",
+    "name": "📎 no document",
+    "properties": {},
+    "children": [
+      "-1000000067"
+    ]
+  },
+  {
+    "id": "385",
+    "role": "StaticText",
+    "name": "−100.00",
+    "properties": {},
+    "children": [
+      "-1000000068"
+    ]
+  },
+  {
+    "id": "386",
+    "role": "StaticText",
+    "name": " ",
+    "properties": {},
+    "children": [
+      "-1000000069"
+    ]
+  },
+  {
+    "id": "387",
+    "role": "StaticText",
+    "name": "€",
+    "properties": {},
+    "children": [
+      "-1000000070"
+    ]
+  },
+  {
+    "id": "273",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "388"
+    ]
+  },
+  {
+    "id": "-1000000022",
+    "role": "InlineTextBox",
+    "name": "All",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000023",
+    "role": "InlineTextBox",
+    "name": "Draft 1",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000024",
+    "role": "InlineTextBox",
+    "name": "Pending 1",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000025",
+    "role": "InlineTextBox",
+    "name": "Posted 1",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000026",
+    "role": "InlineTextBox",
+    "name": "Corrected 0",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000027",
+    "role": "InlineTextBox",
+    "name": "Include cancelled",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000028",
+    "role": "InlineTextBox",
+    "name": "📎 No document ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000029",
+    "role": "InlineTextBox",
+    "name": "3",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000030",
+    "role": "InlineTextBox",
+    "name": "Showing 3 of 6 expenses · total −458.01 €",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000031",
+    "role": "InlineTextBox",
+    "name": " · ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "336",
+    "role": "StaticText",
+    "name": "Search “",
+    "properties": {},
+    "children": [
+      "-1000000032"
+    ]
+  },
+  {
+    "id": "337",
+    "role": "StaticText",
+    "name": "SYNTHETIC",
+    "properties": {},
+    "children": [
+      "-1000000033"
+    ]
+  },
+  {
+    "id": "6",
+    "role": "StaticText",
+    "name": "”",
+    "properties": {},
+    "children": [
+      "-1000000034"
+    ]
+  },
+  {
+    "id": "-1000000035",
+    "role": "InlineTextBox",
+    "name": " in supplier, invoice number, category or amount",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000036",
+    "role": "InlineTextBox",
+    "name": "Reset",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "348",
+    "role": "StaticText",
+    "name": "SYNTHETIC302 Supplier",
+    "properties": {},
+    "children": [
+      "-1000000039",
+      "-1000000040"
+    ]
+  },
+  {
+    "id": "-1000000041",
+    "role": "InlineTextBox",
+    "name": "software",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000042",
+    "role": "InlineTextBox",
+    "name": "Invoice no.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000043",
+    "role": "InlineTextBox",
+    "name": "SYN-302-003",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000044",
+    "role": "InlineTextBox",
+    "name": "23 Oct",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000045",
+    "role": "InlineTextBox",
+    "name": "📎 no document",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000046",
+    "role": "InlineTextBox",
+    "name": "−234.56",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000047",
+    "role": "InlineTextBox",
+    "name": " ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000048",
+    "role": "InlineTextBox",
+    "name": "€",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "360",
+    "role": "StaticText",
+    "name": "pending",
+    "properties": {},
+    "children": [
+      "-1000000049"
+    ]
+  },
+  {
+    "id": "362",
+    "role": "StaticText",
+    "name": "SYNTHETIC302 Supplier",
+    "properties": {},
+    "children": [
+      "-1000000050",
+      "-1000000051"
+    ]
+  },
+  {
+    "id": "-1000000052",
+    "role": "InlineTextBox",
+    "name": "software",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000053",
+    "role": "InlineTextBox",
+    "name": "Invoice no.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000054",
+    "role": "InlineTextBox",
+    "name": "SYN-302-EDIT-1280",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000055",
+    "role": "InlineTextBox",
+    "name": "23 Oct",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000056",
+    "role": "InlineTextBox",
+    "name": "📎 no document",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000057",
+    "role": "InlineTextBox",
+    "name": "−123.45",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000058",
+    "role": "InlineTextBox",
+    "name": " ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000059",
+    "role": "InlineTextBox",
+    "name": "€",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "374",
+    "role": "StaticText",
+    "name": "draft",
+    "properties": {},
+    "children": [
+      "-1000000060"
+    ]
+  },
+  {
+    "id": "376",
+    "role": "StaticText",
+    "name": "SYNTHETIC302 Supplier",
+    "properties": {},
+    "children": [
+      "-1000000061",
+      "-1000000062"
+    ]
+  },
+  {
+    "id": "-1000000063",
+    "role": "InlineTextBox",
+    "name": "software",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000064",
+    "role": "InlineTextBox",
+    "name": "Invoice no.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000065",
+    "role": "InlineTextBox",
+    "name": "SYN-302-001",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000066",
+    "role": "InlineTextBox",
+    "name": "23 Oct",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000067",
+    "role": "InlineTextBox",
+    "name": "📎 no document",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000068",
+    "role": "InlineTextBox",
+    "name": "−100.00",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000069",
+    "role": "InlineTextBox",
+    "name": " ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000070",
+    "role": "InlineTextBox",
+    "name": "€",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "388",
+    "role": "StaticText",
+    "name": "posted",
+    "properties": {},
+    "children": [
+      "-1000000071"
+    ]
+  },
+  {
+    "id": "-1000000032",
+    "role": "InlineTextBox",
+    "name": "Search “",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000033",
+    "role": "InlineTextBox",
+    "name": "SYNTHETIC",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000034",
+    "role": "InlineTextBox",
+    "name": "”",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000039",
+    "role": "InlineTextBox",
+    "name": "SYNTHETIC302 ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000040",
+    "role": "InlineTextBox",
+    "name": "Supplier",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000049",
+    "role": "InlineTextBox",
+    "name": "pending",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000050",
+    "role": "InlineTextBox",
+    "name": "SYNTHETIC302 ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000051",
+    "role": "InlineTextBox",
+    "name": "Supplier",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000060",
+    "role": "InlineTextBox",
+    "name": "draft",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000061",
+    "role": "InlineTextBox",
+    "name": "SYNTHETIC302 ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000062",
+    "role": "InlineTextBox",
+    "name": "Supplier",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000000071",
+    "role": "InlineTextBox",
+    "name": "posted",
+    "properties": {},
+    "children": []
+  }
+]

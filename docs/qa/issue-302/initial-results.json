@@ -1,0 +1,5966 @@
+{
+  "synthetic": true,
+  "node": "v24.21.0",
+  "started": "2026-10-23T13:18:55.980Z",
+  "cases": [
+    {
+      "name": "search-radios",
+      "width": 320,
+      "height": 844,
+      "ok": false,
+      "error": "locator.waitFor: Timeout 16000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('searchbox', { name: 'Search statement lines', exact: true }) to be visible\u001b[22m\n\n    at /root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:20:104\n    at async run (/root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:17:208)\n    at async /root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:18:3",
+      "active": {
+        "tag": "BODY",
+        "role": null,
+        "text": "booksInbox2BooksBankReportsSettingsSign out‹ BackOct 2026DeleteUnmatched 2All 2⌕Matches description, counterpa",
+        "ariaLabel": null,
+        "inside": null,
+        "focusVisible": false,
+        "tabIndex": -1,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 844
+        }
+      },
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/bank-statements/1/propose-matches"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "edit-validation-pending-error",
+      "width": 320,
+      "height": 844,
+      "details": {
+        "initial": {
+          "tag": "BUTTON",
+          "role": null,
+          "text": "",
+          "ariaLabel": "Close",
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": 0,
+          "rect": {
+            "x": 268,
+            "y": 790.7221069335938,
+            "width": 44,
+            "height": 44
+          }
+        },
+        "traversal": [
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "SoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesVehicleIt",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 799.4847412109375,
+              "width": 280,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— none —SYNTHETIC302 Supplier",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 876.9847412109375,
+              "width": 280,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 895.0491943359375,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 995.0491943359375,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1075.0491943359375,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1155.0491943359375,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1141.528564453125,
+              "width": 280,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1141.528564453125,
+              "width": 280,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1141.528564453125,
+              "width": 280,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": false,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1141.528564453125,
+              "width": 280,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— company paid —",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1116.8270263671875,
+              "width": 280,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "General (default)Accommodation — immovable property (Art 47)Restaurant & catering (Art 55)",
+            "ariaLabel": "Place-of-supply rule",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 931.8270263671875,
+              "width": 135,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Save draft",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1135.8270263671875,
+              "width": 280,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 442.3269958496094,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "SoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesVehicleIt",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 419.91510009765625,
+              "width": 280,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— none —SYNTHETIC302 Supplier",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 497.41510009765625,
+              "width": 280,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 594.9151000976562,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 694.9151000976562,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 774.9151000976562,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 784.6732177734375,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 704.6732177734375,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 624.6732177734375,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 478.493408203125,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— none —SYNTHETIC302 Supplier",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 380.993408203125,
+              "width": 280,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "SoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesVehicleIt",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 303.493408203125,
+              "width": 280,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 194.07080078125,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Save draft",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1205.57080078125,
+              "width": 280,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "General (default)Accommodation — immovable property (Art 47)Restaurant & catering (Art 55)",
+            "ariaLabel": "Place-of-supply rule",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 683.57080078125,
+              "width": 135,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— company paid —",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 550.57080078125,
+              "width": 280,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": false,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 445.21209716796875,
+              "width": 280,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 445.21209716796875,
+              "width": 280,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 445.21209716796875,
+              "width": 280,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 427.37109375,
+              "width": 280,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 347.37109375,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 267.37109375,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 207.37110900878906,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 391.31927490234375,
+              "width": 280,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— none —SYNTHETIC302 Supplier",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 293.81927490234375,
+              "width": 280,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "SoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesVehicleIt",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 216.3192596435547,
+              "width": 280,
+              "height": 42.00001525878906
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 127.50465393066406,
+              "width": 44,
+              "height": 44
+            }
+          }
+        ],
+        "validationDescription": "Enter an amount like 12.40",
+        "pending": {
+          "tag": "DIV",
+          "role": "dialog",
+          "text": "Edit draft expenseCategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducati",
+          "ariaLabel": null,
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": -1,
+          "rect": {
+            "x": 0,
+            "y": 82.52018737792969,
+            "width": 320,
+            "height": 776.46875
+          }
+        },
+        "pendingWalk": [
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 144.5201873779297,
+              "width": 320,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 144.5201873779297,
+              "width": 320,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 144.5201873779297,
+              "width": 320,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 141.3267822265625,
+              "width": 320,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 141.3267822265625,
+              "width": 320,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 141.3267822265625,
+              "width": 320,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 138.65216064453125,
+              "width": 320,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 138.65216064453125,
+              "width": 320,
+              "height": 690.46875
+            }
+          }
+        ],
+        "statuses": [
+          "Working… please wait."
+        ],
+        "injectedError": 409,
+        "checkboxName": null,
+        "errorRoleExposed": true,
+        "focusReturned": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "PATCH",
+          "path": "/api/expenses/2"
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/expenses/2"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "confirm-dialog",
+      "width": 320,
+      "height": 844,
+      "details": {
+        "initial": {
+          "tag": "BUTTON",
+          "role": null,
+          "text": "Cancel",
+          "ariaLabel": null,
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": 0,
+          "rect": {
+            "x": 44,
+            "y": 478.75,
+            "width": 111,
+            "height": 42.5
+          }
+        },
+        "traversal": [
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 165,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 165,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 165,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 165,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 165,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 165,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 165,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 165,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 478.75,
+              "width": 111,
+              "height": 42.5
+            }
+          }
+        ],
+        "pending": {
+          "tag": "DIV",
+          "role": "alertdialog",
+          "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+          "ariaLabel": null,
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": -1,
+          "rect": {
+            "x": 24,
+            "y": 302.75,
+            "width": 272,
+            "height": 238.5
+          }
+        },
+        "pendingWalk": [
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 302.75,
+              "width": 272,
+              "height": 238.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 302.75,
+              "width": 272,
+              "height": 238.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 302.75,
+              "width": 272,
+              "height": 238.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 302.75,
+              "width": 272,
+              "height": 238.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 302.75,
+              "width": 272,
+              "height": 238.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 302.75,
+              "width": 272,
+              "height": 238.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 302.75,
+              "width": 272,
+              "height": 238.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 302.75,
+              "width": 272,
+              "height": 238.5
+            }
+          }
+        ],
+        "focusReturned": true,
+        "errorPresentInAx": true,
+        "live": [
+          {
+            "live": "polite",
+            "text": "503 Service Unavailable: SYNTHETIC302 delete refused"
+          }
+        ]
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "DELETE",
+          "path": "/api/expenses/2"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "preview",
+      "width": 320,
+      "height": 844,
+      "details": {
+        "initial": {
+          "tag": "BUTTON",
+          "role": null,
+          "text": "",
+          "ariaLabel": "Close preview",
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": 0,
+          "rect": {
+            "x": 268,
+            "y": 10,
+            "width": 40,
+            "height": 40
+          }
+        },
+        "traversal": [
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 108,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          }
+        ],
+        "backgroundNavigationAbsentFromAx": true,
+        "focusReturned": true,
+        "backgroundScrollLock": "visible"
+      },
+      "ok": true,
+      "writes": [],
+      "pageErrors": []
+    },
+    {
+      "name": "inbox-reject",
+      "width": 320,
+      "height": 844,
+      "ok": false,
+      "error": "locator.waitFor: Error: strict mode violation: getByText(/SYNTHETIC302 reject refused/) resolved to 2 elements:\n    1) <p class=\"line-clamp-3 sm:line-clamp-none\">Rejecting was not confirmed (503 Service Unavaila…</p> aka getByText('Rejecting was not confirmed (')\n    2) <div class=\"\" data-title=\"\">503 Service Unavailable: SYNTHETIC302 reject refu…</div> aka getByText('503 Service Unavailable: SYNTHETIC302 reject refused', { exact: true })\n\nCall log:\n\u001b[2m  - waiting for getByText(/SYNTHETIC302 reject refused/) to be visible\u001b[22m\n\n    at /root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:36:1130\n    at async run (/root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:17:208)\n    at async /root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:35:3",
+      "active": {
+        "tag": "DIV",
+        "role": "dialog",
+        "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+        "ariaLabel": null,
+        "inside": null,
+        "focusVisible": true,
+        "tabIndex": -1,
+        "rect": {
+          "x": 0,
+          "y": 467.4244384765625,
+          "width": 320,
+          "height": 410
+        }
+      },
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/approvals/2/reject"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "bank-checkbox-and-correction-radios",
+      "width": 320,
+      "height": 844,
+      "details": {
+        "checkboxName": "Select match 2026-10-23 · SYN-302-001",
+        "before": "false",
+        "after": "true",
+        "checkedIndices": [
+          1,
+          2,
+          1,
+          0
+        ],
+        "radioNames": [
+          "Financial — amounts or category are wrong Reverses the posted entry and posts the corrected figures; this document is then marked “corrected” and can’t be corrected again. If its period is locked, the correction is dated into the current open period.",
+          "Cosmetic — the figures are right For a problem that doesn’t affect the figures. Nothing changes in the books and nothing is saved — not even the reason. If the amounts or category are wrong, choose Financial.",
+          "Credit note — credit part or all of it Issues a negative document against this one; the original stays posted. Opens the credit-note form with this document preselected."
+        ],
+        "groups": [
+          {
+            "role": "group",
+            "name": ""
+          }
+        ],
+        "focusReturned": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/bank-statements/1/propose-matches"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "route-changing-success-focus",
+      "width": 320,
+      "height": 844,
+      "details": {
+        "route": "/books/expenses/4",
+        "openerRemoved": true,
+        "destination": {
+          "tag": "H1",
+          "role": null,
+          "text": "Expense",
+          "ariaLabel": "Expense #4",
+          "inside": null,
+          "focusVisible": true,
+          "tabIndex": -1,
+          "rect": {
+            "x": 133.5,
+            "y": 207.5,
+            "width": 63,
+            "height": 22.5
+          }
+        },
+        "logicalDestinationHeadingFocused": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/expenses"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "search-radios",
+      "width": 390,
+      "height": 844,
+      "ok": false,
+      "error": "locator.waitFor: Timeout 16000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('searchbox', { name: 'Search statement lines', exact: true }) to be visible\u001b[22m\n\n    at /root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:20:104\n    at async run (/root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:17:208)\n    at async /root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:18:3",
+      "active": {
+        "tag": "BODY",
+        "role": null,
+        "text": "booksInbox2BooksBankReportsSettingsSign out‹ BackOct 2026DeleteUnmatched 2All 2⌕Matches description, counterpa",
+        "ariaLabel": null,
+        "inside": null,
+        "focusVisible": false,
+        "tabIndex": -1,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        }
+      },
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/bank-statements/1/propose-matches"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "edit-validation-pending-error",
+      "width": 390,
+      "height": 844,
+      "details": {
+        "initial": {
+          "tag": "BUTTON",
+          "role": null,
+          "text": "",
+          "ariaLabel": "Close",
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": 0,
+          "rect": {
+            "x": 338,
+            "y": 790.4657592773438,
+            "width": 44,
+            "height": 44
+          }
+        },
+        "traversal": [
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "SoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesVehicleIt",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 799.0435791015625,
+              "width": 350,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— none —SYNTHETIC302 Supplier",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 876.5435791015625,
+              "width": 350,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 974.0435791015625,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 994.709716796875,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1074.709716796875,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1154.709716796875,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1234.709716796875,
+              "width": 350,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1141.3343505859375,
+              "width": 350,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1141.3343505859375,
+              "width": 350,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": false,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1141.3343505859375,
+              "width": 350,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— company paid —",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1223.3343505859375,
+              "width": 350,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "General (default)Accommodation — immovable property (Art 47)Restaurant & catering (Art 55)",
+            "ariaLabel": "Place-of-supply rule",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1053.8343505859375,
+              "width": 170,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Save draft",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1135.1053466796875,
+              "width": 350,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 442.1053771972656,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "SoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesVehicleIt",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 519.6053466796875,
+              "width": 350,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— none —SYNTHETIC302 Supplier",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 597.1053466796875,
+              "width": 350,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 595.0902099609375,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 695.0902099609375,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 775.0902099609375,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 855.0902099609375,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 704.7880859375,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 624.7880859375,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 524.7880859375,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— none —SYNTHETIC302 Supplier",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 381.06597900390625,
+              "width": 350,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "SoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesVehicleIt",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 303.56597900390625,
+              "width": 350,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 226.0659637451172,
+              "width": 44,
+              "height": 44.00001525878906
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Save draft",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1170.12255859375,
+              "width": 350,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "General (default)Accommodation — immovable property (Art 47)Restaurant & catering (Art 55)",
+            "ariaLabel": "Place-of-supply rule",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 699.12255859375,
+              "width": 170,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— company paid —",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 585.62255859375,
+              "width": 350,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": false,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 503.6225891113281,
+              "width": 350,
+              "height": 46.499969482421875
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 480.2509765625,
+              "width": 350,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 480.2509765625,
+              "width": 350,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 480.2509765625,
+              "width": 350,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 382.3994140625,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 302.3994140625,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 222.3994140625,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 405.3994140625,
+              "width": 350,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— none —SYNTHETIC302 Supplier",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 293.81622314453125,
+              "width": 350,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "SoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesVehicleIt",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 216.3162384033203,
+              "width": 350,
+              "height": 41.99998474121094
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 138.8162384033203,
+              "width": 44,
+              "height": 44
+            }
+          }
+        ],
+        "validationDescription": "Enter an amount like 12.40",
+        "pending": {
+          "tag": "DIV",
+          "role": "dialog",
+          "text": "Edit draft expenseCategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducati",
+          "ariaLabel": null,
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": -1,
+          "rect": {
+            "x": 0,
+            "y": 86.3176040649414,
+            "width": 390,
+            "height": 776.46875
+          }
+        },
+        "pendingWalk": [
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 148.31759643554688,
+              "width": 390,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 148.31759643554688,
+              "width": 390,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 144.51934814453125,
+              "width": 390,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 144.51934814453125,
+              "width": 390,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 144.51934814453125,
+              "width": 390,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 144.51934814453125,
+              "width": 390,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 141.32608032226562,
+              "width": 390,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 141.32608032226562,
+              "width": 390,
+              "height": 690.46875
+            }
+          }
+        ],
+        "statuses": [
+          "Working… please wait."
+        ],
+        "injectedError": 409,
+        "checkboxName": null,
+        "errorRoleExposed": true,
+        "focusReturned": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "PATCH",
+          "path": "/api/expenses/2"
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/expenses/2"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "confirm-dialog",
+      "width": 390,
+      "height": 844,
+      "details": {
+        "initial": {
+          "tag": "BUTTON",
+          "role": null,
+          "text": "Cancel",
+          "ariaLabel": null,
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": 0,
+          "rect": {
+            "x": 44,
+            "y": 455.875,
+            "width": 146,
+            "height": 42.5
+          }
+        },
+        "traversal": [
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 200,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 200,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 200,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 200,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 200,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 200,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 200,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 200,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 44,
+              "y": 455.875,
+              "width": 146,
+              "height": 42.5
+            }
+          }
+        ],
+        "pending": {
+          "tag": "DIV",
+          "role": "alertdialog",
+          "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+          "ariaLabel": null,
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": -1,
+          "rect": {
+            "x": 24,
+            "y": 325.625,
+            "width": 342,
+            "height": 192.75
+          }
+        },
+        "pendingWalk": [
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 325.625,
+              "width": 342,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 325.625,
+              "width": 342,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 325.625,
+              "width": 342,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 325.625,
+              "width": 342,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 325.625,
+              "width": 342,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 325.625,
+              "width": 342,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 325.625,
+              "width": 342,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 24,
+              "y": 325.625,
+              "width": 342,
+              "height": 192.75
+            }
+          }
+        ],
+        "focusReturned": true,
+        "errorPresentInAx": true,
+        "live": [
+          {
+            "live": "polite",
+            "text": "503 Service Unavailable: SYNTHETIC302 delete refused"
+          }
+        ]
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "DELETE",
+          "path": "/api/expenses/2"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "preview",
+      "width": 390,
+      "height": 844,
+      "details": {
+        "initial": {
+          "tag": "BUTTON",
+          "role": null,
+          "text": "",
+          "ariaLabel": "Close preview",
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": 0,
+          "rect": {
+            "x": 338,
+            "y": 10,
+            "width": 40,
+            "height": 40
+          }
+        },
+        "traversal": [
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 178,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          }
+        ],
+        "backgroundNavigationAbsentFromAx": true,
+        "focusReturned": true,
+        "backgroundScrollLock": "visible"
+      },
+      "ok": true,
+      "writes": [],
+      "pageErrors": []
+    },
+    {
+      "name": "inbox-reject",
+      "width": 390,
+      "height": 844,
+      "ok": false,
+      "error": "locator.waitFor: Error: strict mode violation: getByText(/SYNTHETIC302 reject refused/) resolved to 2 elements:\n    1) <p class=\"line-clamp-3 sm:line-clamp-none\">Rejecting was not confirmed (503 Service Unavaila…</p> aka getByText('Rejecting was not confirmed (')\n    2) <div class=\"\" data-title=\"\">503 Service Unavailable: SYNTHETIC302 reject refu…</div> aka getByText('503 Service Unavailable: SYNTHETIC302 reject refused', { exact: true })\n\nCall log:\n\u001b[2m  - waiting for getByText(/SYNTHETIC302 reject refused/) to be visible\u001b[22m\n\n    at /root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:36:1130\n    at async run (/root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:17:208)\n    at async /root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:35:3",
+      "active": {
+        "tag": "DIV",
+        "role": "dialog",
+        "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+        "ariaLabel": null,
+        "inside": null,
+        "focusVisible": true,
+        "tabIndex": -1,
+        "rect": {
+          "x": 0,
+          "y": 456.56475830078125,
+          "width": 390,
+          "height": 410
+        }
+      },
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/approvals/2/reject"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "bank-checkbox-and-correction-radios",
+      "width": 390,
+      "height": 844,
+      "details": {
+        "checkboxName": "Select match 2026-10-23 · SYN-302-001",
+        "before": "false",
+        "after": "true",
+        "checkedIndices": [
+          1,
+          2,
+          1,
+          0
+        ],
+        "radioNames": [
+          "Financial — amounts or category are wrong Reverses the posted entry and posts the corrected figures; this document is then marked “corrected” and can’t be corrected again. If its period is locked, the correction is dated into the current open period.",
+          "Cosmetic — the figures are right For a problem that doesn’t affect the figures. Nothing changes in the books and nothing is saved — not even the reason. If the amounts or category are wrong, choose Financial.",
+          "Credit note — credit part or all of it Issues a negative document against this one; the original stays posted. Opens the credit-note form with this document preselected."
+        ],
+        "groups": [
+          {
+            "role": "group",
+            "name": ""
+          }
+        ],
+        "focusReturned": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/bank-statements/1/propose-matches"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "route-changing-success-focus",
+      "width": 390,
+      "height": 844,
+      "details": {
+        "route": "/books/expenses/5",
+        "openerRemoved": true,
+        "destination": {
+          "tag": "H1",
+          "role": null,
+          "text": "Expense",
+          "ariaLabel": "Expense #5",
+          "inside": null,
+          "focusVisible": true,
+          "tabIndex": -1,
+          "rect": {
+            "x": 168.5,
+            "y": 191.6875,
+            "width": 63,
+            "height": 22.5
+          }
+        },
+        "logicalDestinationHeadingFocused": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/expenses"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "search-radios",
+      "width": 1280,
+      "height": 844,
+      "ok": false,
+      "error": "locator.waitFor: Timeout 16000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('searchbox', { name: 'Search statement lines', exact: true }) to be visible\u001b[22m\n\n    at /root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:20:104\n    at async run (/root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:17:208)\n    at async /root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:18:3",
+      "active": {
+        "tag": "BODY",
+        "role": null,
+        "text": "booksInbox2BooksBankReportsSettingsSign out‹ BackOct 2026DeleteUnmatched 2All 2⌕Matches description, counterpa",
+        "ariaLabel": null,
+        "inside": null,
+        "focusVisible": false,
+        "tabIndex": -1,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 844
+        }
+      },
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/bank-statements/1/propose-matches"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "edit-validation-pending-error",
+      "width": 1280,
+      "height": 844,
+      "details": {
+        "initial": {
+          "tag": "BUTTON",
+          "role": null,
+          "text": "",
+          "ariaLabel": "Close",
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": 0,
+          "rect": {
+            "x": 876,
+            "y": 790.4541625976562,
+            "width": 44,
+            "height": 44
+          }
+        },
+        "traversal": [
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "SoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesVehicleIt",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 799.3303833007812,
+              "width": 536,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— none —SYNTHETIC302 Supplier",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 876.8303833007812,
+              "width": 536,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 895.0440673828125,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 995.0440673828125,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 1075.0440673828125,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 1155.0440673828125,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 1141.72900390625,
+              "width": 536,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 1141.72900390625,
+              "width": 536,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 1141.72900390625,
+              "width": 536,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": false,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 1035.0421142578125,
+              "width": 536,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— company paid —",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 1117.029052734375,
+              "width": 536,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "General (default)Accommodation — immovable property (Art 47)Restaurant & catering (Art 55)",
+            "ariaLabel": "Place-of-supply rule",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 981.529052734375,
+              "width": 263,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Save draft",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 1135.529052734375,
+              "width": 536,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 876,
+              "y": 442.5290222167969,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "SoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesVehicleIt",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 420.2499694824219,
+              "width": 536,
+              "height": 42
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— none —SYNTHETIC302 Supplier",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 497.7499694824219,
+              "width": 536,
+              "height": 42.000030517578125
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 595.25,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 695.25,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 704.8928833007812,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 784.8928833007812,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 704.8928833007812,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 578.640869140625,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 478.640869140625,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— none —SYNTHETIC302 Supplier",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 381.140869140625,
+              "width": 536,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "SoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesVehicleIt",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 271.6760559082031,
+              "width": 536,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 876,
+              "y": 194.17605590820312,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Save draft",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 1120.176025390625,
+              "width": 536,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "General (default)Accommodation — immovable property (Art 47)Restaurant & catering (Art 55)",
+            "ariaLabel": "Place-of-supply rule",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 709.747314453125,
+              "width": 263,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— company paid —",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 612.247314453125,
+              "width": 536,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": false,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 530.247314453125,
+              "width": 536,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 512.3984985351562,
+              "width": 536,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 512.3984985351562,
+              "width": 536,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 498.341064453125,
+              "width": 536,
+              "height": 46.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 418.341064453125,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 338.341064453125,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 247.02239990234375,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "INPUT",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 182.02239990234375,
+              "width": 536,
+              "height": 44.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "— none —SYNTHETIC302 Supplier",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 282.52239990234375,
+              "width": 536,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "SELECT",
+            "role": null,
+            "text": "SoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesVehicleIt",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 195.761962890625,
+              "width": 536,
+              "height": 42
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 876,
+              "y": 118.261962890625,
+              "width": 44,
+              "height": 44
+            }
+          }
+        ],
+        "validationDescription": "Enter an amount like 12.40",
+        "pending": {
+          "tag": "DIV",
+          "role": "dialog",
+          "text": "Edit draft expenseCategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducati",
+          "ariaLabel": null,
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": -1,
+          "rect": {
+            "x": 352,
+            "y": 79.33082580566406,
+            "width": 576,
+            "height": 776.46875
+          }
+        },
+        "pendingWalk": [
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 141.33082580566406,
+              "width": 576,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 138.655517578125,
+              "width": 576,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 138.655517578125,
+              "width": 576,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 138.655517578125,
+              "width": 576,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 138.655517578125,
+              "width": 576,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 136.42901611328125,
+              "width": 576,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 136.42901611328125,
+              "width": 576,
+              "height": 690.46875
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": null,
+            "text": "CategorySoftwareTransportTravelMarketingSalaryContractorRentTaxBank FeeMealsInsuranceEducationOffice SuppliesV",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 134.59451293945312,
+              "width": 576,
+              "height": 690.46875
+            }
+          }
+        ],
+        "statuses": [
+          "Working… please wait."
+        ],
+        "injectedError": 409,
+        "checkboxName": null,
+        "errorRoleExposed": true,
+        "focusReturned": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "PATCH",
+          "path": "/api/expenses/2"
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/expenses/2"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "confirm-dialog",
+      "width": 1280,
+      "height": 844,
+      "details": {
+        "initial": {
+          "tag": "BUTTON",
+          "role": null,
+          "text": "Cancel",
+          "ariaLabel": null,
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": 0,
+          "rect": {
+            "x": 468,
+            "y": 455.875,
+            "width": 167,
+            "height": 42.5
+          }
+        },
+        "traversal": [
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 645,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 468,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 645,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 468,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 645,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 468,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 645,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 468,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 645,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 468,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 645,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 468,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 645,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 468,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Delete",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 645,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Cancel",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 468,
+              "y": 455.875,
+              "width": 167,
+              "height": 42.5
+            }
+          }
+        ],
+        "pending": {
+          "tag": "DIV",
+          "role": "alertdialog",
+          "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+          "ariaLabel": null,
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": -1,
+          "rect": {
+            "x": 448,
+            "y": 325.625,
+            "width": 384,
+            "height": 192.75
+          }
+        },
+        "pendingWalk": [
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 448,
+              "y": 325.625,
+              "width": 384,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 448,
+              "y": 325.625,
+              "width": 384,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 448,
+              "y": 325.625,
+              "width": 384,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 448,
+              "y": 325.625,
+              "width": 384,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 448,
+              "y": 325.625,
+              "width": 384,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 448,
+              "y": 325.625,
+              "width": 384,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 448,
+              "y": 325.625,
+              "width": 384,
+              "height": 192.75
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "alertdialog",
+            "text": "Delete this draft expense?The draft is removed permanently. Posted expenses can never be deleted — only correc",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 448,
+              "y": 325.625,
+              "width": 384,
+              "height": 192.75
+            }
+          }
+        ],
+        "focusReturned": true,
+        "errorPresentInAx": true,
+        "live": [
+          {
+            "live": "polite",
+            "text": "503 Service Unavailable: SYNTHETIC302 delete refused"
+          }
+        ]
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "DELETE",
+          "path": "/api/expenses/2"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "preview",
+      "width": 1280,
+      "height": 844,
+      "details": {
+        "initial": {
+          "tag": "BUTTON",
+          "role": null,
+          "text": "",
+          "ariaLabel": "Close preview",
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": 0,
+          "rect": {
+            "x": 1228,
+            "y": 10,
+            "width": 40,
+            "height": 40
+          }
+        },
+        "traversal": [
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "Open original",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1068,
+              "y": 11.5,
+              "width": 152,
+              "height": 37
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close preview",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 1228,
+              "y": 10,
+              "width": 40,
+              "height": 40
+            }
+          }
+        ],
+        "backgroundNavigationAbsentFromAx": true,
+        "focusReturned": true,
+        "backgroundScrollLock": "visible"
+      },
+      "ok": true,
+      "writes": [],
+      "pageErrors": []
+    },
+    {
+      "name": "inbox-reject",
+      "width": 1280,
+      "height": 844,
+      "ok": false,
+      "error": "locator.waitFor: Error: strict mode violation: getByText(/SYNTHETIC302 reject refused/) resolved to 2 elements:\n    1) <p class=\"line-clamp-3 sm:line-clamp-none\">Rejecting was not confirmed (503 Service Unavaila…</p> aka getByText('Rejecting was not confirmed (')\n    2) <div class=\"\" data-title=\"\">503 Service Unavailable: SYNTHETIC302 reject refu…</div> aka getByText('503 Service Unavailable: SYNTHETIC302 reject refused', { exact: true })\n\nCall log:\n\u001b[2m  - waiting for getByText(/SYNTHETIC302 reject refused/) to be visible\u001b[22m\n\n    at /root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:36:1130\n    at async run (/root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:17:208)\n    at async /root/.cache/hbk-worktrees/issue-302/docs/qa/issue-302/browser.cjs:35:3",
+      "active": {
+        "tag": "DIV",
+        "role": "dialog",
+        "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+        "ariaLabel": null,
+        "inside": null,
+        "focusVisible": true,
+        "tabIndex": -1,
+        "rect": {
+          "x": 352,
+          "y": 503.2417907714844,
+          "width": 576,
+          "height": 371.0000305175781
+        }
+      },
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/approvals/2/reject"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "bank-checkbox-and-correction-radios",
+      "width": 1280,
+      "height": 844,
+      "details": {
+        "checkboxName": "Select match 2026-10-23 · SYN-302-001",
+        "before": "false",
+        "after": "true",
+        "checkedIndices": [
+          1,
+          2,
+          1,
+          0
+        ],
+        "radioNames": [
+          "Financial — amounts or category are wrong Reverses the posted entry and posts the corrected figures; this document is then marked “corrected” and can’t be corrected again. If its period is locked, the correction is dated into the current open period.",
+          "Cosmetic — the figures are right For a problem that doesn’t affect the figures. Nothing changes in the books and nothing is saved — not even the reason. If the amounts or category are wrong, choose Financial.",
+          "Credit note — credit part or all of it Issues a negative document against this one; the original stays posted. Opens the credit-note form with this document preselected."
+        ],
+        "groups": [
+          {
+            "role": "group",
+            "name": ""
+          }
+        ],
+        "focusReturned": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/bank-statements/1/propose-matches"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "route-changing-success-focus",
+      "width": 1280,
+      "height": 844,
+      "details": {
+        "route": "/books/expenses/6",
+        "openerRemoved": true,
+        "destination": {
+          "tag": "H1",
+          "role": null,
+          "text": "Expense",
+          "ariaLabel": "Expense #6",
+          "inside": null,
+          "focusVisible": true,
+          "tabIndex": -1,
+          "rect": {
+            "x": 725.5,
+            "y": 173.8125,
+            "width": 63,
+            "height": 22.5
+          }
+        },
+        "logicalDestinationHeadingFocused": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/expenses"
+        }
+      ],
+      "pageErrors": []
+    }
+  ],
+  "browser": "153.0.8010.12",
+  "events320": {
+    "errors": [],
+    "writes": [
+      {
+        "method": "POST",
+        "path": "/api/bank-statements/1/propose-matches"
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/expenses/2"
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/expenses/2"
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/expenses/2"
+      },
+      {
+        "method": "POST",
+        "path": "/api/approvals/2/reject"
+      },
+      {
+        "method": "POST",
+        "path": "/api/bank-statements/1/propose-matches"
+      },
+      {
+        "method": "POST",
+        "path": "/api/expenses"
+      }
+    ],
+    "httpErrors": [
+      {
+        "status": 409,
+        "path": "/api/expenses/2"
+      },
+      {
+        "status": 503,
+        "path": "/api/expenses/2"
+      },
+      {
+        "status": 503,
+        "path": "/api/approvals/2/reject"
+      }
+    ]
+  },
+  "events390": {
+    "errors": [],
+    "writes": [
+      {
+        "method": "POST",
+        "path": "/api/bank-statements/1/propose-matches"
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/expenses/2"
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/expenses/2"
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/expenses/2"
+      },
+      {
+        "method": "POST",
+        "path": "/api/approvals/2/reject"
+      },
+      {
+        "method": "POST",
+        "path": "/api/bank-statements/1/propose-matches"
+      },
+      {
+        "method": "POST",
+        "path": "/api/expenses"
+      }
+    ],
+    "httpErrors": [
+      {
+        "status": 409,
+        "path": "/api/expenses/2"
+      },
+      {
+        "status": 503,
+        "path": "/api/expenses/2"
+      },
+      {
+        "status": 503,
+        "path": "/api/approvals/2/reject"
+      }
+    ]
+  },
+  "events1280": {
+    "errors": [],
+    "writes": [
+      {
+        "method": "POST",
+        "path": "/api/bank-statements/1/propose-matches"
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/expenses/2"
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/expenses/2"
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/expenses/2"
+      },
+      {
+        "method": "POST",
+        "path": "/api/approvals/2/reject"
+      },
+      {
+        "method": "POST",
+        "path": "/api/bank-statements/1/propose-matches"
+      },
+      {
+        "method": "POST",
+        "path": "/api/expenses"
+      }
+    ],
+    "httpErrors": [
+      {
+        "status": 409,
+        "path": "/api/expenses/2"
+      },
+      {
+        "status": 503,
+        "path": "/api/expenses/2"
+      },
+      {
+        "status": 503,
+        "path": "/api/approvals/2/reject"
+      }
+    ]
+  }
+}

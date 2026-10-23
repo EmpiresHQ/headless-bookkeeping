@@ -1,0 +1,1538 @@
+{
+  "synthetic": true,
+  "node": "v24.21.0",
+  "started": "2026-10-23T13:21:53.593Z",
+  "cases": [
+    {
+      "name": "search-radios",
+      "width": 320,
+      "height": 844,
+      "details": {
+        "checks": [
+          {
+            "path": "/books",
+            "name": "Search expenses",
+            "ring": {
+              "inputFocusVisible": true,
+              "wrapperOutline": "rgb(14, 90, 60) solid 2px",
+              "wrapperOutlineWidth": "2px"
+            },
+            "mainCount": 1
+          },
+          {
+            "path": "/inbox",
+            "name": "Search the Inbox",
+            "ring": {
+              "inputFocusVisible": true,
+              "wrapperOutline": "rgb(14, 90, 60) solid 2px",
+              "wrapperOutlineWidth": "2px"
+            },
+            "mainCount": 1
+          },
+          {
+            "path": "/bank/statements/1",
+            "name": "Search this statement",
+            "ring": {
+              "inputFocusVisible": true,
+              "wrapperOutline": "rgb(14, 90, 60) solid 2px",
+              "wrapperOutlineWidth": "2px"
+            },
+            "mainCount": 1
+          }
+        ],
+        "nativeRadioLabels": [
+          "Expenses",
+          "Invoices",
+          "Documents",
+          "Credit notes"
+        ],
+        "groupName": "Record type",
+        "arrowAndTabBehavior": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/bank-statements/1/propose-matches"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "inbox-reject",
+      "width": 320,
+      "height": 844,
+      "details": {
+        "initial": {
+          "tag": "BUTTON",
+          "role": null,
+          "text": "",
+          "ariaLabel": "Close",
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": 0,
+          "rect": {
+            "x": 268,
+            "y": 852,
+            "width": 44,
+            "height": 44
+          }
+        },
+        "traversal": [
+          {
+            "key": "Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1039,
+              "width": 280,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 852,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1006.5880126953125,
+              "width": 280,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 819.5880126953125,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1006.5880126953125,
+              "width": 280,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 819.5880126953125,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 970.1312255859375,
+              "width": 280,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 783.1312255859375,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 970.1312255859375,
+              "width": 280,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 741.2431640625,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 928.2431640625,
+              "width": 280,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 741.2431640625,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 928.2431640625,
+              "width": 280,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 691.94140625,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 878.94140625,
+              "width": 280,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 268,
+              "y": 691.94140625,
+              "width": 44,
+              "height": 44
+            }
+          }
+        ],
+        "pending": {
+          "tag": "DIV",
+          "role": "dialog",
+          "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+          "ariaLabel": null,
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": -1,
+          "rect": {
+            "x": 0,
+            "y": 509.913818359375,
+            "width": 320,
+            "height": 447.5
+          }
+        },
+        "pendingWalk": [
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 483.2716369628906,
+              "width": 320,
+              "height": 447.4999694824219
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 483.2716369628906,
+              "width": 320,
+              "height": 447.4999694824219
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 483.2716369628906,
+              "width": 320,
+              "height": 447.4999694824219
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 483.2716369628906,
+              "width": 320,
+              "height": 447.4999694824219
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 464.857666015625,
+              "width": 320,
+              "height": 447.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 464.857666015625,
+              "width": 320,
+              "height": 447.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 464.857666015625,
+              "width": 320,
+              "height": 447.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 464.857666015625,
+              "width": 320,
+              "height": 447.5
+            }
+          }
+        ],
+        "errorTextExposedInAx": true,
+        "errorSpeechNotTested": true,
+        "focusReturned": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/approvals/2/reject"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "search-radios",
+      "width": 390,
+      "height": 844,
+      "details": {
+        "checks": [
+          {
+            "path": "/books",
+            "name": "Search expenses",
+            "ring": {
+              "inputFocusVisible": true,
+              "wrapperOutline": "rgb(14, 90, 60) solid 2px",
+              "wrapperOutlineWidth": "2px"
+            },
+            "mainCount": 1
+          },
+          {
+            "path": "/inbox",
+            "name": "Search the Inbox",
+            "ring": {
+              "inputFocusVisible": true,
+              "wrapperOutline": "rgb(14, 90, 60) solid 2px",
+              "wrapperOutlineWidth": "2px"
+            },
+            "mainCount": 1
+          },
+          {
+            "path": "/bank/statements/1",
+            "name": "Search this statement",
+            "ring": {
+              "inputFocusVisible": true,
+              "wrapperOutline": "rgb(14, 90, 60) solid 2px",
+              "wrapperOutlineWidth": "2px"
+            },
+            "mainCount": 1
+          }
+        ],
+        "nativeRadioLabels": [
+          "Expenses",
+          "Invoices",
+          "Documents",
+          "Credit notes"
+        ],
+        "groupName": "Record type",
+        "arrowAndTabBehavior": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/bank-statements/1/propose-matches"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "inbox-reject",
+      "width": 390,
+      "height": 844,
+      "details": {
+        "initial": {
+          "tag": "BUTTON",
+          "role": null,
+          "text": "",
+          "ariaLabel": "Close",
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": 0,
+          "rect": {
+            "x": 338,
+            "y": 852,
+            "width": 44,
+            "height": 44
+          }
+        },
+        "traversal": [
+          {
+            "key": "Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1039,
+              "width": 350,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 852,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1039,
+              "width": 350,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 819.4669189453125,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1006.4669189453125,
+              "width": 350,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 819.4669189453125,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 1006.4669189453125,
+              "width": 350,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 783.0729370117188,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 970.0729370117188,
+              "width": 350,
+              "height": 89.50006103515625
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 783.0729370117188,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 928.1751708984375,
+              "width": 350,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 741.1751708984375,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 928.1751708984375,
+              "width": 350,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 741.1751708984375,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 20,
+              "y": 878.8612060546875,
+              "width": 350,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 338,
+              "y": 691.8612060546875,
+              "width": 44,
+              "height": 44
+            }
+          }
+        ],
+        "pending": {
+          "tag": "DIV",
+          "role": "dialog",
+          "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+          "ariaLabel": null,
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": -1,
+          "rect": {
+            "x": 0,
+            "y": 509.85736083984375,
+            "width": 390,
+            "height": 447.5
+          }
+        },
+        "pendingWalk": [
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 509.85736083984375,
+              "width": 390,
+              "height": 447.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 483.23370361328125,
+              "width": 390,
+              "height": 447.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 483.23370361328125,
+              "width": 390,
+              "height": 447.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 483.23370361328125,
+              "width": 390,
+              "height": 447.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 483.23370361328125,
+              "width": 390,
+              "height": 447.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 464.83062744140625,
+              "width": 390,
+              "height": 447.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 464.83062744140625,
+              "width": 390,
+              "height": 447.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 0,
+              "y": 464.83062744140625,
+              "width": 390,
+              "height": 447.5
+            }
+          }
+        ],
+        "errorTextExposedInAx": true,
+        "errorSpeechNotTested": true,
+        "focusReturned": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/approvals/2/reject"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "search-radios",
+      "width": 1280,
+      "height": 844,
+      "details": {
+        "checks": [
+          {
+            "path": "/books",
+            "name": "Search expenses",
+            "ring": {
+              "inputFocusVisible": true,
+              "wrapperOutline": "rgb(14, 90, 60) solid 2px",
+              "wrapperOutlineWidth": "2px"
+            },
+            "mainCount": 1
+          },
+          {
+            "path": "/inbox",
+            "name": "Search the Inbox",
+            "ring": {
+              "inputFocusVisible": true,
+              "wrapperOutline": "rgb(14, 90, 60) solid 2px",
+              "wrapperOutlineWidth": "2px"
+            },
+            "mainCount": 1
+          },
+          {
+            "path": "/bank/statements/1",
+            "name": "Search this statement",
+            "ring": {
+              "inputFocusVisible": true,
+              "wrapperOutline": "rgb(14, 90, 60) solid 2px",
+              "wrapperOutlineWidth": "2px"
+            },
+            "mainCount": 1
+          }
+        ],
+        "nativeRadioLabels": [
+          "Expenses",
+          "Invoices",
+          "Documents",
+          "Credit notes"
+        ],
+        "groupName": "Record type",
+        "arrowAndTabBehavior": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/bank-statements/1/propose-matches"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "inbox-reject",
+      "width": 1280,
+      "height": 844,
+      "details": {
+        "initial": {
+          "tag": "BUTTON",
+          "role": null,
+          "text": "",
+          "ariaLabel": "Close",
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": 0,
+          "rect": {
+            "x": 876,
+            "y": 852,
+            "width": 44,
+            "height": 44
+          }
+        },
+        "traversal": [
+          {
+            "key": "Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 970.6079711914062,
+              "width": 536,
+              "height": 89.49993896484375
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 876,
+              "y": 822.6079711914062,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 970.6079711914062,
+              "width": 536,
+              "height": 89.49993896484375
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 876,
+              "y": 822.6079711914062,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 970.6079711914062,
+              "width": 536,
+              "height": 89.49993896484375
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 876,
+              "y": 789.68212890625,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 937.68212890625,
+              "width": 536,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 876,
+              "y": 789.68212890625,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 937.68212890625,
+              "width": 536,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 876,
+              "y": 751.778564453125,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 899.778564453125,
+              "width": 536,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 876,
+              "y": 751.778564453125,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 899.778564453125,
+              "width": 536,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 876,
+              "y": 707.1549072265625,
+              "width": 44,
+              "height": 44
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "TEXTAREA",
+            "role": null,
+            "text": "",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 372,
+              "y": 855.1549072265625,
+              "width": 536,
+              "height": 89.5
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "BUTTON",
+            "role": null,
+            "text": "",
+            "ariaLabel": "Close",
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": 0,
+            "rect": {
+              "x": 876,
+              "y": 707.1549072265625,
+              "width": 44,
+              "height": 44
+            }
+          }
+        ],
+        "pending": {
+          "tag": "DIV",
+          "role": "dialog",
+          "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+          "ariaLabel": null,
+          "inside": true,
+          "focusVisible": true,
+          "tabIndex": -1,
+          "rect": {
+            "x": 352,
+            "y": 553.017578125,
+            "width": 576,
+            "height": 389.75
+          }
+        },
+        "pendingWalk": [
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 529.81689453125,
+              "width": 576,
+              "height": 389.75
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 529.81689453125,
+              "width": 576,
+              "height": 389.75
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 529.81689453125,
+              "width": 576,
+              "height": 389.75
+            }
+          },
+          {
+            "key": "Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 529.81689453125,
+              "width": 576,
+              "height": 389.75
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 529.81689453125,
+              "width": 576,
+              "height": 389.75
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 513.78125,
+              "width": 576,
+              "height": 389.75
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 513.78125,
+              "width": 576,
+              "height": 389.75
+            }
+          },
+          {
+            "key": "Shift+Tab",
+            "tag": "DIV",
+            "role": "dialog",
+            "text": "Reject expenseThe expense goes back to draft, where it can be corrected and resubmitted. Nothing is posted and",
+            "ariaLabel": null,
+            "inside": true,
+            "focusVisible": true,
+            "tabIndex": -1,
+            "rect": {
+              "x": 352,
+              "y": 513.78125,
+              "width": 576,
+              "height": 389.75
+            }
+          }
+        ],
+        "errorTextExposedInAx": true,
+        "errorSpeechNotTested": true,
+        "focusReturned": true
+      },
+      "ok": true,
+      "writes": [
+        {
+          "method": "POST",
+          "path": "/api/approvals/2/reject"
+        }
+      ],
+      "pageErrors": []
+    }
+  ],
+  "browser": "153.0.8010.12",
+  "events320": {
+    "errors": [],
+    "writes": [
+      {
+        "method": "POST",
+        "path": "/api/bank-statements/1/propose-matches"
+      },
+      {
+        "method": "POST",
+        "path": "/api/approvals/2/reject"
+      }
+    ],
+    "httpErrors": [
+      {
+        "status": 503,
+        "path": "/api/approvals/2/reject"
+      }
+    ]
+  },
+  "events390": {
+    "errors": [],
+    "writes": [
+      {
+        "method": "POST",
+        "path": "/api/bank-statements/1/propose-matches"
+      },
+      {
+        "method": "POST",
+        "path": "/api/approvals/2/reject"
+      }
+    ],
+    "httpErrors": [
+      {
+        "status": 503,
+        "path": "/api/approvals/2/reject"
+      }
+    ]
+  },
+  "events1280": {
+    "errors": [],
+    "writes": [
+      {
+        "method": "POST",
+        "path": "/api/bank-statements/1/propose-matches"
+      },
+      {
+        "method": "POST",
+        "path": "/api/approvals/2/reject"
+      }
+    ],
+    "httpErrors": [
+      {
+        "status": 503,
+        "path": "/api/approvals/2/reject"
+      }
+    ]
+  }
+}

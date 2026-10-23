@@ -1,0 +1,827 @@
+[
+  {
+    "id": "2185",
+    "role": "RootWebArea",
+    "name": "Bookkeeping",
+    "properties": {
+      "focusable": true,
+      "focused": true,
+      "url": "http://127.0.0.1:5302/books/expenses/1"
+    },
+    "children": [
+      "2191"
+    ]
+  },
+  {
+    "id": "2227",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2229",
+      "2188"
+    ]
+  },
+  {
+    "id": "2229",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2240",
+      "2245",
+      "2249",
+      "2257",
+      "2263",
+      "2267",
+      "2280",
+      "2281",
+      "2282",
+      "2284",
+      "2287",
+      "2288",
+      "2319",
+      "2336",
+      "2366"
+    ]
+  },
+  {
+    "id": "2188",
+    "role": "dialog",
+    "name": "Correct",
+    "properties": {
+      "focusable": true,
+      "modal": false
+    },
+    "children": [
+      "2368",
+      "2189",
+      "2372",
+      "2373"
+    ]
+  },
+  {
+    "id": "2366",
+    "role": "region",
+    "name": "Notifications alt+T",
+    "properties": {
+      "live": "polite",
+      "atomic": false,
+      "relevant": "additions text",
+      "focusable": true
+    },
+    "children": []
+  },
+  {
+    "id": "2189",
+    "role": "button",
+    "name": "Close",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": []
+  },
+  {
+    "id": "2372",
+    "role": "heading",
+    "name": "Correct",
+    "properties": {
+      "level": 2
+    },
+    "children": [
+      "2534"
+    ]
+  },
+  {
+    "id": "2373",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2374"
+    ]
+  },
+  {
+    "id": "2534",
+    "role": "StaticText",
+    "name": "Correct",
+    "properties": {},
+    "children": [
+      "-1000001898"
+    ]
+  },
+  {
+    "id": "2374",
+    "role": "group",
+    "name": "",
+    "properties": {
+      "invalid": "false"
+    },
+    "children": [
+      "2375",
+      "2388",
+      "2394",
+      "2400",
+      "2463",
+      "2472",
+      "2473"
+    ]
+  },
+  {
+    "id": "-1000001898",
+    "role": "InlineTextBox",
+    "name": "Correct",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "2376",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2377",
+      "2379"
+    ]
+  },
+  {
+    "id": "2380",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2381",
+      "2383"
+    ]
+  },
+  {
+    "id": "2384",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2385",
+      "2387"
+    ]
+  },
+  {
+    "id": "2389",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2390",
+      "2392"
+    ]
+  },
+  {
+    "id": "2395",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2396",
+      "2398"
+    ]
+  },
+  {
+    "id": "2402",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2403",
+      "2405"
+    ]
+  },
+  {
+    "id": "2464",
+    "role": "LabelText",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2465",
+      "2467"
+    ]
+  },
+  {
+    "id": "2471",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2547"
+    ]
+  },
+  {
+    "id": "2472",
+    "role": "button",
+    "name": "Post correction · −100.00 €",
+    "properties": {
+      "disabled": true,
+      "invalid": "false"
+    },
+    "children": [
+      "2548"
+    ]
+  },
+  {
+    "id": "2473",
+    "role": "status",
+    "name": "",
+    "properties": {
+      "live": "polite",
+      "atomic": true,
+      "relevant": "additions text"
+    },
+    "children": []
+  },
+  {
+    "id": "2378",
+    "role": "radio",
+    "name": "Financial — amounts or category are wrong Reverses the posted entry and posts the corrected figures; this document is then marked “corrected” and can’t be corrected again. If its period is locked, the correction is dated into the current open period.",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "focused": true,
+      "checked": "true"
+    },
+    "children": []
+  },
+  {
+    "id": "2535",
+    "role": "StaticText",
+    "name": "Financial — amounts or category are wrong",
+    "properties": {},
+    "children": [
+      "-1000001899"
+    ]
+  },
+  {
+    "id": "2536",
+    "role": "StaticText",
+    "name": "Reverses the posted entry and posts the corrected figures; this document is then marked “corrected” and can’t be corrected again. If its period is locked, the correction is dated into the current open period.",
+    "properties": {},
+    "children": [
+      "-1000001900",
+      "-1000001901",
+      "-1000001902"
+    ]
+  },
+  {
+    "id": "2382",
+    "role": "radio",
+    "name": "Cosmetic — the figures are right For a problem that doesn’t affect the figures. Nothing changes in the books and nothing is saved — not even the reason. If the amounts or category are wrong, choose Financial.",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "checked": "false"
+    },
+    "children": []
+  },
+  {
+    "id": "2537",
+    "role": "StaticText",
+    "name": "Cosmetic — the figures are right",
+    "properties": {},
+    "children": [
+      "-1000001903"
+    ]
+  },
+  {
+    "id": "2538",
+    "role": "StaticText",
+    "name": "For a problem that doesn’t affect the figures. Nothing changes in the books and nothing is saved — not even the reason. If the amounts or category are wrong, choose Financial.",
+    "properties": {},
+    "children": [
+      "-1000001904",
+      "-1000001905",
+      "-1000001906"
+    ]
+  },
+  {
+    "id": "2386",
+    "role": "radio",
+    "name": "Credit note — credit part or all of it Issues a negative document against this one; the original stays posted. Opens the credit-note form with this document preselected.",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "checked": "false"
+    },
+    "children": []
+  },
+  {
+    "id": "2539",
+    "role": "StaticText",
+    "name": "Credit note — credit part or all of it",
+    "properties": {},
+    "children": [
+      "-1000001907"
+    ]
+  },
+  {
+    "id": "2540",
+    "role": "StaticText",
+    "name": "Issues a negative document against this one; the original stays posted. Opens the credit-note form with this document preselected.",
+    "properties": {},
+    "children": [
+      "-1000001908",
+      "-1000001909"
+    ]
+  },
+  {
+    "id": "2541",
+    "role": "StaticText",
+    "name": "New gross (€)",
+    "properties": {},
+    "children": [
+      "-1000001910"
+    ]
+  },
+  {
+    "id": "2392",
+    "role": "textbox",
+    "name": "New gross (€)",
+    "value": "100.00",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "editable": "plaintext",
+      "settable": true,
+      "multiline": false,
+      "readonly": false,
+      "required": false
+    },
+    "children": [
+      "2393"
+    ]
+  },
+  {
+    "id": "2543",
+    "role": "StaticText",
+    "name": "New VAT (€)",
+    "properties": {},
+    "children": [
+      "-1000001912"
+    ]
+  },
+  {
+    "id": "2398",
+    "role": "textbox",
+    "name": "New VAT (€)",
+    "value": "0.00",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "editable": "plaintext",
+      "settable": true,
+      "multiline": false,
+      "readonly": false,
+      "required": false
+    },
+    "children": [
+      "2399"
+    ]
+  },
+  {
+    "id": "2545",
+    "role": "StaticText",
+    "name": "Category",
+    "properties": {},
+    "children": [
+      "-1000001914"
+    ]
+  },
+  {
+    "id": "2405",
+    "role": "combobox",
+    "name": "Category",
+    "value": "Software",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "hasPopup": "menu",
+      "expanded": false
+    },
+    "children": [
+      "2408"
+    ]
+  },
+  {
+    "id": "2546",
+    "role": "StaticText",
+    "name": "Reason",
+    "properties": {},
+    "children": [
+      "-1000001915"
+    ]
+  },
+  {
+    "id": "2467",
+    "role": "textbox",
+    "name": "Reason",
+    "description": "Required — it lands in the audit trail",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "editable": "plaintext",
+      "settable": true,
+      "multiline": true,
+      "readonly": false,
+      "required": false,
+      "describedby": ":rd:-desc"
+    },
+    "children": [
+      "2468",
+      "2469"
+    ]
+  },
+  {
+    "id": "2547",
+    "role": "StaticText",
+    "name": "Required — it lands in the audit trail",
+    "properties": {},
+    "children": [
+      "-1000001916"
+    ]
+  },
+  {
+    "id": "2548",
+    "role": "StaticText",
+    "name": "Post correction · −100.00 €",
+    "properties": {},
+    "children": [
+      "-1000001917"
+    ]
+  },
+  {
+    "id": "-1000001899",
+    "role": "InlineTextBox",
+    "name": "Financial — amounts or category are wrong",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001900",
+    "role": "InlineTextBox",
+    "name": "Reverses the posted entry and posts the corrected figures; this document ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001901",
+    "role": "InlineTextBox",
+    "name": "is then marked “corrected” and can’t be corrected again. If its period ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001902",
+    "role": "InlineTextBox",
+    "name": "is locked, the correction is dated into the current open period.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001903",
+    "role": "InlineTextBox",
+    "name": "Cosmetic — the figures are right",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001904",
+    "role": "InlineTextBox",
+    "name": "For a problem that doesn’t affect the figures. Nothing changes in the ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001905",
+    "role": "InlineTextBox",
+    "name": "books and nothing is saved — not even the reason. If the amounts or ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001906",
+    "role": "InlineTextBox",
+    "name": "category are wrong, choose Financial.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001907",
+    "role": "InlineTextBox",
+    "name": "Credit note — credit part or all of it",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001908",
+    "role": "InlineTextBox",
+    "name": "Issues a negative document against this one; the original stays posted. ",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001909",
+    "role": "InlineTextBox",
+    "name": "Opens the credit-note form with this document preselected.",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001910",
+    "role": "InlineTextBox",
+    "name": "New gross (€)",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "2393",
+    "role": "generic",
+    "name": "",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "2542"
+    ]
+  },
+  {
+    "id": "-1000001912",
+    "role": "InlineTextBox",
+    "name": "New VAT (€)",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "2399",
+    "role": "generic",
+    "name": "",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "2544"
+    ]
+  },
+  {
+    "id": "-1000001914",
+    "role": "InlineTextBox",
+    "name": "Category",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "2408",
+    "role": "MenuListPopup",
+    "name": "",
+    "properties": {},
+    "children": [
+      "2409"
+    ]
+  },
+  {
+    "id": "-1000001915",
+    "role": "InlineTextBox",
+    "name": "Reason",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "2469",
+    "role": "generic",
+    "name": "",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": []
+  },
+  {
+    "id": "-1000001916",
+    "role": "InlineTextBox",
+    "name": "Required — it lands in the audit trail",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "-1000001917",
+    "role": "InlineTextBox",
+    "name": "Post correction · −100.00 €",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "2542",
+    "role": "StaticText",
+    "name": "100.00",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "-1000001911"
+    ]
+  },
+  {
+    "id": "2544",
+    "role": "StaticText",
+    "name": "0.00",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": [
+      "-1000001913"
+    ]
+  },
+  {
+    "id": "2412",
+    "role": "option",
+    "name": "Software",
+    "properties": {
+      "focusable": true,
+      "selected": true
+    },
+    "children": []
+  },
+  {
+    "id": "2415",
+    "role": "option",
+    "name": "Transport",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2418",
+    "role": "option",
+    "name": "Travel",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2421",
+    "role": "option",
+    "name": "Marketing",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2424",
+    "role": "option",
+    "name": "Salary",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2427",
+    "role": "option",
+    "name": "Contractor",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2430",
+    "role": "option",
+    "name": "Rent",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2433",
+    "role": "option",
+    "name": "Tax",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2436",
+    "role": "option",
+    "name": "Bank Fee",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2439",
+    "role": "option",
+    "name": "Meals",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2442",
+    "role": "option",
+    "name": "Insurance",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2445",
+    "role": "option",
+    "name": "Education",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2448",
+    "role": "option",
+    "name": "Office Supplies",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2451",
+    "role": "option",
+    "name": "Vehicle",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2454",
+    "role": "option",
+    "name": "It_equipment",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2457",
+    "role": "option",
+    "name": "Machinery",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "2460",
+    "role": "option",
+    "name": "Furniture",
+    "properties": {
+      "focusable": true,
+      "selected": false
+    },
+    "children": []
+  },
+  {
+    "id": "-1000001911",
+    "role": "InlineTextBox",
+    "name": "100.00",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": []
+  },
+  {
+    "id": "-1000001913",
+    "role": "InlineTextBox",
+    "name": "0.00",
+    "properties": {
+      "editable": "plaintext"
+    },
+    "children": []
+  }
+]

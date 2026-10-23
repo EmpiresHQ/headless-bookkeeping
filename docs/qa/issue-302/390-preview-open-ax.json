@@ -1,0 +1,182 @@
+[
+  {
+    "id": "1474",
+    "role": "RootWebArea",
+    "name": "Bookkeeping",
+    "properties": {
+      "focusable": true,
+      "focused": true,
+      "url": "http://127.0.0.1:5302/inbox"
+    },
+    "children": [
+      "1487"
+    ]
+  },
+  {
+    "id": "1525",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1527",
+      "1655"
+    ]
+  },
+  {
+    "id": "1527",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1572",
+      "1575",
+      "1578",
+      "1581",
+      "1587",
+      "1588",
+      "1592",
+      "1597",
+      "1602",
+      "1604",
+      "1618",
+      "1626",
+      "1631",
+      "1635",
+      "1643",
+      "1649",
+      "1653"
+    ]
+  },
+  {
+    "id": "1655",
+    "role": "dialog",
+    "name": "Document preview",
+    "properties": {
+      "focusable": true,
+      "modal": true
+    },
+    "children": [
+      "1656",
+      "1657",
+      "1667",
+      "1669"
+    ]
+  },
+  {
+    "id": "1653",
+    "role": "region",
+    "name": "Notifications alt+T",
+    "properties": {
+      "live": "polite",
+      "atomic": false,
+      "relevant": "additions text",
+      "focusable": true
+    },
+    "children": []
+  },
+  {
+    "id": "1656",
+    "role": "heading",
+    "name": "Document preview",
+    "properties": {
+      "level": 2
+    },
+    "children": [
+      "1718"
+    ]
+  },
+  {
+    "id": "1657",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1658",
+      "1663"
+    ]
+  },
+  {
+    "id": "1668",
+    "role": "image",
+    "name": "Document preview",
+    "properties": {
+      "url": "blob:http://127.0.0.1:5302/d8667a9e-85a7-4c7d-b9dc-81fd7458adbf"
+    },
+    "children": []
+  },
+  {
+    "id": "1669",
+    "role": "generic",
+    "name": "",
+    "properties": {},
+    "children": [
+      "1670"
+    ]
+  },
+  {
+    "id": "1718",
+    "role": "StaticText",
+    "name": "Document preview",
+    "properties": {},
+    "children": [
+      "-1000001872"
+    ]
+  },
+  {
+    "id": "1658",
+    "role": "button",
+    "name": "Open original",
+    "properties": {
+      "invalid": "false",
+      "focusable": true
+    },
+    "children": [
+      "1719"
+    ]
+  },
+  {
+    "id": "1663",
+    "role": "button",
+    "name": "Close preview",
+    "properties": {
+      "invalid": "false",
+      "focusable": true,
+      "focused": true
+    },
+    "children": []
+  },
+  {
+    "id": "1670",
+    "role": "status",
+    "name": "",
+    "properties": {
+      "live": "polite",
+      "atomic": true,
+      "relevant": "additions text"
+    },
+    "children": []
+  },
+  {
+    "id": "-1000001872",
+    "role": "InlineTextBox",
+    "name": "Document preview",
+    "properties": {},
+    "children": []
+  },
+  {
+    "id": "1719",
+    "role": "StaticText",
+    "name": "Open original",
+    "properties": {},
+    "children": [
+      "-1000001873"
+    ]
+  },
+  {
+    "id": "-1000001873",
+    "role": "InlineTextBox",
+    "name": "Open original",
+    "properties": {},
+    "children": []
+  }
+]
