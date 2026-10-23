@@ -80,14 +80,17 @@ describe('create flows', () => {
       screen.getByRole('button', { name: 'Create expense · −48.20 €' }),
     );
     await waitFor(() =>
-      expect(createExpense).toHaveBeenCalledWith({
-        category: 'fuel',
-        gross_amount: 4820,
-        vat_amount: 869, // 22% inside 48.20
-        currency: 'EUR',
-        tax_point_date: '2026-07-01',
-        supplier_id: null,
-      }),
+      expect(createExpense).toHaveBeenCalledWith(
+        {
+          category: 'fuel',
+          gross_amount: 4820,
+          vat_amount: 869, // 22% inside 48.20
+          currency: 'EUR',
+          tax_point_date: '2026-07-01',
+          supplier_id: null,
+        },
+        expect.any(String),
+      ),
     );
     expect(await screen.findByText('EXP DETAIL')).toBeInTheDocument();
   });
@@ -150,7 +153,7 @@ describe('create flows', () => {
     );
     await act(async () => fail(new Error('503 Service Unavailable')));
     await waitFor(() =>
-      expect(screen.getByLabelText('Gross (€)')).not.toBeDisabled(),
+      expect(screen.getByLabelText('Gross (€)')).toBeDisabled(),
     );
     expect(screen.getByLabelText('Gross (€)')).toHaveValue('123.45');
     // Stated in the form too (#265) — persistently, and without claiming
@@ -161,5 +164,43 @@ describe('create flows', () => {
     expect(alert.closest('[role="alert"]')).toHaveTextContent(
       /503 Service Unavailable/,
     );
+  });
+  it('retries an unknown create with the same key/facts; a new form creates a separate operation (#420)', async () => {
+    vi.clearAllMocks();
+    seed();
+    vi.mocked(createExpense)
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValue({ id: 31 } as never);
+    const fill = async () => {
+      await screen.findByText('Fuel');
+      fireEvent.change(screen.getByLabelText('Category'), {
+        target: { value: 'fuel' },
+      });
+      fireEvent.change(screen.getByLabelText('Gross (€)'), {
+        target: { value: '48.20' },
+      });
+      fireEvent.change(screen.getByLabelText('Tax point date'), {
+        target: { value: '2026-07-01' },
+      });
+    };
+    const view = mount(<NewExpenseSheet open onOpenChange={() => undefined} />);
+    await fill();
+    fireEvent.click(screen.getByRole('button', { name: /Create expense/ }));
+    await screen.findByText(
+      /Creation was not confirmed. Retry sends the same saved facts/,
+    );
+    const first = vi.mocked(createExpense).mock.calls[0];
+    expect(first[1]).toEqual(expect.any(String));
+    expect(screen.getByLabelText('Gross (€)')).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /Create expense/ }));
+    await screen.findByText('EXP DETAIL');
+    expect(vi.mocked(createExpense).mock.calls[1]).toEqual(first);
+    view.unmount();
+    mount(<NewExpenseSheet open onOpenChange={() => undefined} />);
+    await fill();
+    fireEvent.click(screen.getByRole('button', { name: /Create expense/ }));
+    await screen.findByText('EXP DETAIL');
+    expect(vi.mocked(createExpense).mock.calls[2][1]).not.toBe(first[1]);
+    expect(vi.mocked(createExpense).mock.calls[2][0]).toEqual(first[0]);
   });
 });

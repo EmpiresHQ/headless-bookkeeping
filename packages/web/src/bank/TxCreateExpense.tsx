@@ -93,7 +93,10 @@ export function TxCreateExpense({
   });
   // Once the expense exists its facts are the server's: the form locks,
   // and there is no unsaved input left to lose.
-  const locked = landed !== null && landed.expenseId !== null;
+  const createUnconfirmed =
+    landed?.expenseId == null && landed?.createOperation != null;
+  const saved = landed !== null && landed.expenseId !== null;
+  const locked = saved || createUnconfirmed;
   // VAT is seeded from the line amount once (frozen with the rest).
   const values = {
     category,
@@ -219,6 +222,13 @@ export function TxCreateExpense({
       pending={busy}
       status="Creating and matching… the form is locked until the server answers."
     >
+      {createUnconfirmed && (
+        <p role="status" className="mx-3.5 mb-3 text-[13px] text-warn">
+          Creation was not confirmed. Retry uses the same saved facts and
+          operation; the fields stay locked. After leaving this line, check
+          Books before starting a separate expense.
+        </p>
+      )}
       {landed !== null && landed.expenseId !== null && (
         <div
           role="status"
@@ -398,7 +408,7 @@ export function TxCreateExpense({
             busy={busy}
             onClick={onSubmit}
           >
-            {locked
+            {saved
               ? `Finish · expense #${landed?.expenseId}`
               : `Create & match · ${fmtCents(tx.amount)} €`}
           </Button>

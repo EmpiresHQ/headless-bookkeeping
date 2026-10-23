@@ -590,10 +590,16 @@ export interface CreateExpenseInput {
   document_vat_marking?: string | null;
 }
 
-export const createExpense = (input: CreateExpenseInput) =>
+export const createExpense = (
+  input: CreateExpenseInput,
+  operationKey?: string,
+) =>
   apiFetch<Expense>('/api/expenses', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(operationKey ? { 'Idempotency-Key': operationKey } : {}),
+    },
     body: JSON.stringify(input),
   });
 

@@ -25,3 +25,36 @@ An Operation result records the outcome of an attempt, not Current object state;
 - Test shared behavior through each module's interface; retain unique screen integration coverage, including refresh-driven unmounting and navigation. Remove duplicate tests only after equivalent coverage exists.
 
 This does not change the kernel's posting rules ([ADR-0021](0021-voucher-numbering-and-idempotent-posting.md)), its caller-supplied refetch callback ([ADR-0029](0029-posting-pipeline-refetch-stays-a-callback.md)), or the SPA's role as a client ([ADR-0030](0030-operator-spa-on-headless-kernel.md)). Concrete TypeScript signatures and filenames remain implementation choices within this contract.
+
+## Amendment: Expense create replay (#420, 2026-10-23)
+
+The coordinator approved a narrow extension after #300/#420 reproduced two
+persisted draft Expenses from one browser request: Chromium retried an empty
+HTTP/1.1 response after the first insert committed. The earlier exclusion of
+server idempotency applied to the prior refactor; it is superseded **only for
+`POST /api/expenses`**. Posting, matching, approval and other create endpoints
+retain their existing contracts.
+
+An optional `Idempotency-Key` identifies one Expense creation operation, rather
+than one purchase or posting. In the organization's single-tenant database the
+key is atomically bound to normalized accepted create facts, the Expense ID and
+the original serialized create response. Equal key/facts replay that response;
+equal key with changed facts conflicts. Distinct keys are independent operations
+subject to the existing purchase duplicate guard, and no-key callers remain
+compatible. Normalization uses insert defaults (including null/general) and
+canonical object ordering, not fuzzy amount/date/supplier deduplication. Failed
+creation rolls back the key, expense and override audit together.
+
+The original response is an Operation result, not Current object state. It is
+retained without expiry, including after edits, posting or deletion of the draft;
+replaying a deleted draft's create receipt never recreates it. This trades a small
+retained operational record per keyed create for safe retries. Current state is
+still read through the object's endpoint. No ledger history is rewritten.
+
+New expense and bank-line Expense creation allocate a key before their first
+request and keep its submitted facts on unknown-outcome retries. Fields lock
+until the create is confirmed or definitively refused. A new form/chain denotes
+a deliberate new operation and gets a new key; keys/progress do not gain reload
+persistence. After a reload or closing the form, the existing result/history
+recovery remains necessary before starting another operation. Keys are not a
+replacement for ADR-0021's independent posting claim or a general mutation engine.

@@ -24,7 +24,7 @@ vi.mock('../api', () => ({
 }));
 
 import * as api from '../api';
-import { SessionChangedError, UnauthorizedError } from '../auth';
+import { HttpError, SessionChangedError, UnauthorizedError } from '../auth';
 import {
   bankKeys,
   BookingPartialError,
@@ -331,6 +331,51 @@ describe('createExpenseFromLine', () => {
     } as never);
   }
 
+  it('preserves the create key and original facts on unknown retry, without repeating later stages (#420)', async () => {
+    happyPath();
+    vi.mocked(api.createExpense).mockRejectedValueOnce(
+      new TypeError('Failed to fetch'),
+    );
+    const progress = newFromLineProgress();
+    await expect(
+      createExpenseFromLine(INPUT, progress, noStage),
+    ).rejects.toThrow('Failed to fetch');
+    const first = vi.mocked(api.createExpense).mock.calls[0];
+    expect(first[1]).toEqual(expect.any(String));
+    expect(api.postExpense).not.toHaveBeenCalled();
+    await createExpenseFromLine(
+      { ...INPUT, grossCents: 9999 },
+      progress,
+      noStage,
+    );
+    expect(vi.mocked(api.createExpense).mock.calls[1]).toEqual(first);
+    expect(api.createExpense).toHaveBeenCalledTimes(2);
+    expect(api.postExpense).toHaveBeenCalledTimes(1);
+    expect(api.manualMatch).toHaveBeenCalledTimes(1);
+    expect(progress.createOperation).toBeUndefined();
+  });
+
+  it('a definite create refusal releases the attempt for corrected facts (#420)', async () => {
+    happyPath();
+    vi.mocked(api.createExpense).mockRejectedValueOnce(
+      new HttpError(422, 'refused'),
+    );
+    const progress = newFromLineProgress();
+    await expect(
+      createExpenseFromLine(INPUT, progress, noStage),
+    ).rejects.toThrow('refused');
+    const first = vi.mocked(api.createExpense).mock.calls[0];
+    expect(progress.createOperation).toBeUndefined();
+    await createExpenseFromLine(
+      { ...INPUT, grossCents: 2000 },
+      progress,
+      noStage,
+    );
+    const second = vi.mocked(api.createExpense).mock.calls[1];
+    expect(second[1]).not.toBe(first[1]);
+    expect(second[0].gross_amount).toBe(2000);
+  });
+
   it('a failed POST stage resumes on retry: the SAME expense is posted, never a second create (#251)', async () => {
     happyPath();
     vi.mocked(api.postExpense).mockRejectedValueOnce(new Error('503'));
@@ -432,14 +477,17 @@ describe('createExpenseFromLine', () => {
       noStage,
     );
     expect(res).toEqual({ outcome: 'matched', expenseId: 55, matchId: 88 });
-    expect(api.createExpense).toHaveBeenCalledWith({
-      category: 'meals',
-      gross_amount: 1860,
-      vat_amount: 335,
-      currency: 'EUR',
-      tax_point_date: '2026-06-27',
-      supplier_id: 12,
-    });
+    expect(api.createExpense).toHaveBeenCalledWith(
+      {
+        category: 'meals',
+        gross_amount: 1860,
+        vat_amount: 335,
+        currency: 'EUR',
+        tax_point_date: '2026-06-27',
+        supplier_id: 12,
+      },
+      expect.any(String),
+    );
     expect(api.manualMatch).toHaveBeenCalledWith(3, {
       bankTransactionId: 9,
       voucherId: 70,

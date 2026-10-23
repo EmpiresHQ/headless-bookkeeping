@@ -188,6 +188,7 @@ describe('manual create forms — native submit (#266)', () => {
         tax_point_date: '2026-07-01',
         supplier_id: null,
       }),
+      expect.any(String),
     );
   });
 
@@ -357,6 +358,7 @@ describe('manual create forms — native submit (#266)', () => {
     expect(createExpense).toHaveBeenCalledTimes(1);
     expect(createExpense).toHaveBeenCalledWith(
       expect.objectContaining({ supplier_id: 42 }),
+      expect.any(String),
     );
   });
 

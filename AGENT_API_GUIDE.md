@@ -770,3 +770,15 @@ economic events and do not cancel a purchase in this view. Financial replacement
 appear once at their corrected amount. The endpoint returns the whole list;
 there is no server pagination or independent total/count. Apply any downstream
 counts, totals and pagination to the already-filtered list, using effective amounts.
+
+### Expense create retries (#420)
+
+For `POST /api/expenses`, send an optional `Idempotency-Key` header (1–128 ASCII
+letters/digits or `._:-`) identifying one create operation. Retry with the same
+key and facts: the server returns the original draft-create response, even if
+that expense has since changed or been deleted. Read the object separately for
+current state. Changed facts with an accepted key return 409. Use a fresh key for
+a separate operation; identical purchase facts still obey the existing business
+duplicate guard. A failed create does not consume its key. Callers without a key
+retain the legacy behavior and receive no new retry guarantee. This header only
+covers Expense creation, not posting, matching, approvals or invoice creation.
