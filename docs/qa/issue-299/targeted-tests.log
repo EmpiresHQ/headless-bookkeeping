@@ -1,0 +1,20 @@
+
+> @headless-bookkeeping/web@0.0.1 test
+> vitest run src/ui/Sheet.test.tsx src/shell/sheetHistory.test.tsx src/shell/pendingRoutes.test.tsx src/lib/popRestoration.test.ts --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /root/.cache/hbk-worktrees/issue-299/packages/web
+
+ ✓ src/ui/Sheet.test.tsx (25 tests) 1159ms
+ ✓ src/shell/pendingRoutes.test.tsx (9 tests) 2678ms
+   ✓ pending operations on the production routes (#251) > same-tick double submit sends ONE request 860ms
+   ✓ pending operations on the production routes (#251) > while saving: fields locked, Escape/section link/Back/sign-out refused with a status, unload prompts; success navigates once 354ms
+   ✓ pending operations on the production routes (#251) > an unconfirmed failure keeps facts locked and guarded; retry reuses the create operation 395ms
+ ✓ src/shell/sheetHistory.test.tsx (10 tests) 1965ms
+   ✓ sheets and Back/Forward on the production routes (#267) > clean menu: Back closes it and stays; the next Back leaves the route 401ms
+
+ Test Files  3 passed (3)
+      Tests  44 passed (44)
+   Start at  16:20:15
+   Duration  9.84s (transform 920ms, setup 192ms, collect 1.46s, tests 5.80s, environment 1.48s, prepare 370ms)
+

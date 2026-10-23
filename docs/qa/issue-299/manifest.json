@@ -1,0 +1,223 @@
+{
+  "baseCommit": "940648810402abd58390c28610629d206cfed73b",
+  "scope": "#299 bounded QA; product code unchanged",
+  "harnessPass": true,
+  "productCriteria": {
+    "pass": 14,
+    "fail": 1,
+    "unverified": 2
+  },
+  "hardwareEvidence": {
+    "physicalGesture": "UNVERIFIED",
+    "nativeSystemBack": "UNVERIFIED",
+    "osKeyboard": "UNVERIFIED"
+  },
+  "checks": {
+    "productionWebBuild": "PASS",
+    "focusedTests": {
+      "files": 4,
+      "tests": 51,
+      "verdict": "PASS"
+    },
+    "readonlyAudit": "PASS; explicit product FAIL retained",
+    "javascriptSyntax": "PASS",
+    "gitDiffCheck": "PASS"
+  },
+  "artifacts": [
+    {
+      "path": "docs/qa/2026-10-23-sheet-back-navigation-299.md",
+      "bytes": 12311,
+      "sha256": "d4b36c31809c77e45af7258bd404206be0120a1fbfe997df8debab8cf03334e3"
+    },
+    {
+      "path": "docs/qa/issue-299/C-landscape-clean-content.png",
+      "bytes": 86329,
+      "sha256": "62beccd82bacc9156bfe00d673123eefbe80ae4e378cc1ac6fde2f8716c143e0"
+    },
+    {
+      "path": "docs/qa/issue-299/C-landscape-dirty-content.png",
+      "bytes": 89276,
+      "sha256": "9d12dadb049c84f487da0ce8bd1610317efde3dc7f8468d79bd01d4a3d851e76"
+    },
+    {
+      "path": "docs/qa/issue-299/H1-clean-browser-back.png",
+      "bytes": 38152,
+      "sha256": "fd866f0765eca495f5e1e129d62d41b78f855bbd313dfd5bcd7729eee8c808ce"
+    },
+    {
+      "path": "docs/qa/issue-299/H2-dirty-browser-back-question.png",
+      "bytes": 47194,
+      "sha256": "a9d09c590b9c387c82ecf7e59304fdb266eca5827dd62b3b495f57801866be70"
+    },
+    {
+      "path": "docs/qa/issue-299/H2-dirty-browser-back.png",
+      "bytes": 38152,
+      "sha256": "fd866f0765eca495f5e1e129d62d41b78f855bbd313dfd5bcd7729eee8c808ce"
+    },
+    {
+      "path": "docs/qa/issue-299/H3-dirty-same-task-double-back-question.png",
+      "bytes": 47194,
+      "sha256": "a9d09c590b9c387c82ecf7e59304fdb266eca5827dd62b3b495f57801866be70"
+    },
+    {
+      "path": "docs/qa/issue-299/H3-dirty-same-task-double-back.png",
+      "bytes": 38152,
+      "sha256": "fd866f0765eca495f5e1e129d62d41b78f855bbd313dfd5bcd7729eee8c808ce"
+    },
+    {
+      "path": "docs/qa/issue-299/H4-pending-same-task-double-back-unconfirmed.png",
+      "bytes": 50141,
+      "sha256": "0315fdb470146462701f611721cb3854d07ef08e697120a731b9e3a6dd81bf7b"
+    },
+    {
+      "path": "docs/qa/issue-299/H4-pending-same-task-double-back.png",
+      "bytes": 49084,
+      "sha256": "e1dc02c9fa414d85eff0703c5d4967ca5ccc168893a6233f9f0d655f92a1455a"
+    },
+    {
+      "path": "docs/qa/issue-299/H5-clean-double-close.png",
+      "bytes": 38152,
+      "sha256": "fd866f0765eca495f5e1e129d62d41b78f855bbd313dfd5bcd7729eee8c808ce"
+    },
+    {
+      "path": "docs/qa/issue-299/H6-dirty-double-close-question.png",
+      "bytes": 48589,
+      "sha256": "64f207e61d68f0c8b029d6a96a0dff4568e55d8b6621d78fc59b3c64ea8b4af2"
+    },
+    {
+      "path": "docs/qa/issue-299/H6-dirty-double-close.png",
+      "bytes": 38152,
+      "sha256": "fd866f0765eca495f5e1e129d62d41b78f855bbd313dfd5bcd7729eee8c808ce"
+    },
+    {
+      "path": "docs/qa/issue-299/H7-dirty-100ms-double-back-question.png",
+      "bytes": 47669,
+      "sha256": "3be53c13019ecb58c15bcb3807348a78a58503a55fbdc34983b36809d5f136c1"
+    },
+    {
+      "path": "docs/qa/issue-299/H7-dirty-100ms-double-back.png",
+      "bytes": 38152,
+      "sha256": "fd866f0765eca495f5e1e129d62d41b78f855bbd313dfd5bcd7729eee8c808ce"
+    },
+    {
+      "path": "docs/qa/issue-299/H8-pending-browser-back-pending.png",
+      "bytes": 48421,
+      "sha256": "fd8f463a7b21e361c8ca2635f94e47cbf0cbb080868f5c861ced01d37e8c0f37"
+    },
+    {
+      "path": "docs/qa/issue-299/H8-pending-browser-back.png",
+      "bytes": 45823,
+      "sha256": "4dd4229f208b8f6ae05c1cae839249d09a98339395291392a03555dcde84dcdc"
+    },
+    {
+      "path": "docs/qa/issue-299/H9-pending-no-navigation-control-pending.png",
+      "bytes": 47105,
+      "sha256": "55ca0aab03d1f99f98781296d851388a060c849c50f332c2eb0060df9a264370"
+    },
+    {
+      "path": "docs/qa/issue-299/H9-pending-no-navigation-control.png",
+      "bytes": 45474,
+      "sha256": "8fdb88d0a4ecb62c8164a67af1420499a9860ce55fe1e506eeaff047cdd2fd9d"
+    },
+    {
+      "path": "docs/qa/issue-299/T-landscape-clean.png",
+      "bytes": 39150,
+      "sha256": "f07dc69686dd2a88d7b14d49f568dcd52f237ffd47ffaee0db698c34f33b32ef"
+    },
+    {
+      "path": "docs/qa/issue-299/T-landscape-dirty-question.png",
+      "bytes": 56309,
+      "sha256": "ac72240c000cc12d8462c25c9219a7bde1c75a7de3a7f17b6a93836161799dfb"
+    },
+    {
+      "path": "docs/qa/issue-299/T-landscape-dirty.png",
+      "bytes": 39150,
+      "sha256": "f07dc69686dd2a88d7b14d49f568dcd52f237ffd47ffaee0db698c34f33b32ef"
+    },
+    {
+      "path": "docs/qa/issue-299/T-landscape-pending-pending.png",
+      "bytes": 77625,
+      "sha256": "b46ee909c0d33b29d9b711f6f5af4278b89b589e2b38247527c11502483f3719"
+    },
+    {
+      "path": "docs/qa/issue-299/T-landscape-pending.png",
+      "bytes": 51388,
+      "sha256": "26506a424cbd1243e350cf60051043c6fe4e1774aec7e635caa90d3acfee4a2b"
+    },
+    {
+      "path": "docs/qa/issue-299/T-portrait-clean.png",
+      "bytes": 38152,
+      "sha256": "fd866f0765eca495f5e1e129d62d41b78f855bbd313dfd5bcd7729eee8c808ce"
+    },
+    {
+      "path": "docs/qa/issue-299/T-portrait-dirty-question.png",
+      "bytes": 47192,
+      "sha256": "a405d39426e0069de11a89469d8ec0eedbc22be06666b97f1208b2df931facfb"
+    },
+    {
+      "path": "docs/qa/issue-299/T-portrait-dirty.png",
+      "bytes": 38152,
+      "sha256": "fd866f0765eca495f5e1e129d62d41b78f855bbd313dfd5bcd7729eee8c808ce"
+    },
+    {
+      "path": "docs/qa/issue-299/T-portrait-pending-pending.png",
+      "bytes": 47400,
+      "sha256": "a40c9d4fc48de57c7c401749abbc644dcf13e281aee6e215c65311c28684b6c4"
+    },
+    {
+      "path": "docs/qa/issue-299/T-portrait-pending.png",
+      "bytes": 45630,
+      "sha256": "71bedd473dfcee0168c0f9a326595072734de4c0cbd4c8278e9a011e435a9602"
+    },
+    {
+      "path": "docs/qa/issue-299/audit.cjs",
+      "bytes": 5119,
+      "sha256": "bde25a7f6ababbbdd99c21b3f44378a29b6146520ef851857ba60f6b19d096a8"
+    },
+    {
+      "path": "docs/qa/issue-299/audit.json",
+      "bytes": 9055,
+      "sha256": "a5382d3724c8c94ec6e07f210269efb18626384fc793f6dc8ab75f77cc00ec6f"
+    },
+    {
+      "path": "docs/qa/issue-299/backend.cjs",
+      "bytes": 3381,
+      "sha256": "2cd87bae0fae71f86351756f48b3e9d34f75fc3f746ef76348cbb72910b05649"
+    },
+    {
+      "path": "docs/qa/issue-299/browser.cjs",
+      "bytes": 16113,
+      "sha256": "cfc4c6bc801e1cf493479d909d8b15707560902b638d9abbfd11cda3c2f35c2f"
+    },
+    {
+      "path": "docs/qa/issue-299/defect-draft.md",
+      "bytes": 2809,
+      "sha256": "ab86c5ee870d1db6ab369a3863a5288df3825810e7574a96898238fbf736e4a7"
+    },
+    {
+      "path": "docs/qa/issue-299/pop-restoration-tests.log",
+      "bytes": 7904,
+      "sha256": "3977887054c2405b004a71bc6fd9d46da80b63bb037ed5ba66fc36691a14cb10"
+    },
+    {
+      "path": "docs/qa/issue-299/proxy.cjs",
+      "bytes": 5127,
+      "sha256": "26058e6f8d39fd2ef5bfd55228b0b85b534ed96ee1b8726544ae5b66850c32eb"
+    },
+    {
+      "path": "docs/qa/issue-299/results.json",
+      "bytes": 1566339,
+      "sha256": "f4fdd737cd8bd0352fb1d0d8172232bb152244be08a2777faa8a4d097fae2e78"
+    },
+    {
+      "path": "docs/qa/issue-299/targeted-tests.log",
+      "bytes": 1206,
+      "sha256": "fb2c9c907ff0e01d82c46035e6b8c8d70bdc9da8f38da5248462ea0479aea0db"
+    },
+    {
+      "path": "docs/qa/issue-299/web-build.log",
+      "bytes": 23434,
+      "sha256": "28b9a19a1c8ab12bb4c11ebdcfabdfbd8fed7146080eb7703ebf353794b68b71"
+    }
+  ]
+}

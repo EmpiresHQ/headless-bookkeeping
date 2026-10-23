@@ -1,0 +1,155 @@
+
+> @headless-bookkeeping/web@0.0.1 test
+> vitest run src/shell/popRestorationGuard.test.tsx --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /root/.cache/hbk-worktrees/issue-299/packages/web
+
+stderr | src/shell/popRestorationGuard.test.tsx > route guard during a blocked-POP restoration (#370) > a refused Back (dirty leave) starts an episode for its target entry
+Warning: An update to RouterProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at RouterProvider (file:///root/.cache/hbk-worktrees/issue-299/node_modules/react-router/dist/development/chunk-4ZMWKKQ3.mjs:6703:3)
+    at RouterProvider2
+
+stderr | src/shell/popRestorationGuard.test.tsx > route guard during a blocked-POP restoration (#370) > a clean REPLACE is held, then goes ahead unchanged (target, state, mode) when the episode ends
+Warning: An update to RouterProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at RouterProvider (file:///root/.cache/hbk-worktrees/issue-299/node_modules/react-router/dist/development/chunk-4ZMWKKQ3.mjs:6703:3)
+    at RouterProvider2
+
+stderr | src/shell/popRestorationGuard.test.tsx > route guard during a blocked-POP restoration (#370) > held clean, dirty by the time the episode ends: it asks; Keep keeps route and value
+Warning: An update to RouterProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at RouterProvider (file:///root/.cache/hbk-worktrees/issue-299/node_modules/react-router/dist/development/chunk-4ZMWKKQ3.mjs:6703:3)
+    at RouterProvider2
+
+stderr | src/shell/popRestorationGuard.test.tsx > route guard during a blocked-POP restoration (#370) > a dirty leave confirmed DURING the episode navigates only after it ends
+Warning: An update to RouterProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at RouterProvider (file:///root/.cache/hbk-worktrees/issue-299/node_modules/react-router/dist/development/chunk-4ZMWKKQ3.mjs:6703:3)
+    at RouterProvider2
+
+stderr | src/shell/popRestorationGuard.test.tsx > route guard during a blocked-POP restoration (#370) > a newer navigation supersedes a held one: only the newer is ever written
+Warning: An update to RouterProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at RouterProvider (file:///root/.cache/hbk-worktrees/issue-299/node_modules/react-router/dist/development/chunk-4ZMWKKQ3.mjs:6703:3)
+    at RouterProvider2
+
+stderr | src/shell/popRestorationGuard.test.tsx > route guard during a blocked-POP restoration (#370) > a newer navigation supersedes a held one: only the newer is ever written
+Warning: An update to RouterProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at RouterProvider (file:///root/.cache/hbk-worktrees/issue-299/node_modules/react-router/dist/development/chunk-4ZMWKKQ3.mjs:6703:3)
+    at RouterProvider2
+
+stderr | src/shell/popRestorationGuard.test.tsx > route guard during a blocked-POP restoration (#370) > the shell ending first drops the held navigation (no late write)
+Warning: An update to RouterProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at RouterProvider (file:///root/.cache/hbk-worktrees/issue-299/node_modules/react-router/dist/development/chunk-4ZMWKKQ3.mjs:6703:3)
+    at RouterProvider2
+
+stderr | src/shell/popRestorationGuard.test.tsx > route guard during a blocked-POP restoration (#370) > stranded (restoring failed): held and answered navigations are cancelled, new ones refused
+Warning: An update to RouterProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at RouterProvider (file:///root/.cache/hbk-worktrees/issue-299/node_modules/react-router/dist/development/chunk-4ZMWKKQ3.mjs:6703:3)
+    at RouterProvider2
+
+stderr | src/shell/popRestorationGuard.test.tsx > route guard during a blocked-POP restoration (#370) > stranded (restoring failed): held and answered navigations are cancelled, new ones refused
+Warning: An update to RouterProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at RouterProvider (file:///root/.cache/hbk-worktrees/issue-299/node_modules/react-router/dist/development/chunk-4ZMWKKQ3.mjs:6703:3)
+    at RouterProvider2
+
+stderr | src/shell/popRestorationGuard.test.tsx > route guard during a blocked-POP restoration (#370) > stranded (restoring failed): held and answered navigations are cancelled, new ones refused
+Warning: An update to RouterProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at RouterProvider (file:///root/.cache/hbk-worktrees/issue-299/node_modules/react-router/dist/development/chunk-4ZMWKKQ3.mjs:6703:3)
+    at RouterProvider2
+
+ ✓ src/shell/popRestorationGuard.test.tsx (7 tests) 1044ms
+   ✓ route guard during a blocked-POP restoration (#370) > a refused Back (dirty leave) starts an episode for its target entry 465ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  16:22:37
+   Duration  2.78s (transform 937ms, setup 56ms, collect 846ms, tests 1.04s, environment 403ms, prepare 223ms)
+
