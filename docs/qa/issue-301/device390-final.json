@@ -1,0 +1,164 @@
+{
+  "synthetic": true,
+  "started": "2026-10-23T10:26:03.674Z",
+  "node": "v24.21.0",
+  "cases": [
+    {
+      "name": "settings-device",
+      "width": 390,
+      "height": 844,
+      "started": "2026-10-23T10:26:03.900Z",
+      "details": {
+        "saveGeometry": {
+          "width": 68,
+          "height": 42.5,
+          "x": 209,
+          "y": 384.8125,
+          "bottom": 427.3125,
+          "inViewport": true,
+          "centerHit": true,
+          "pageOverflow": false
+        },
+        "clearGeometry": {
+          "width": 77,
+          "height": 42.5,
+          "x": 283,
+          "y": 595.75,
+          "bottom": 638.25,
+          "inViewport": true,
+          "centerHit": true,
+          "pageOverflow": false
+        },
+        "storedBeforeClear": "http://127.0.0.1:5301",
+        "exchanges": [
+          {
+            "v": 1,
+            "api": "http://127.0.0.1:5301",
+            "enrollmentSha256": "7d6dc3f6be71e0e80ab3fd937ef0eb73aa63bf44ba7717a595ef28d8fb7adb99",
+            "exchangeStatus": 201,
+            "replayStatus": 401,
+            "sessionReadStatus": 200,
+            "revokeStatus": 204,
+            "revokedReadStatus": 401,
+            "qrGeometry": {
+              "width": 256,
+              "height": 256,
+              "x": 67,
+              "y": 62.5,
+              "bottom": 318.5,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          },
+          {
+            "v": 1,
+            "api": "http://127.0.0.1:5301",
+            "enrollmentSha256": "5ee5d382a79920e8dd578bf3c7531259cac534843447b51d27844dce0973e777",
+            "exchangeStatus": 201,
+            "replayStatus": 401,
+            "sessionReadStatus": 200,
+            "revokeStatus": 204,
+            "revokedReadStatus": 401,
+            "qrGeometry": {
+              "width": 256,
+              "height": 256,
+              "x": 67,
+              "y": 62.5,
+              "bottom": 318.5,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          }
+        ],
+        "qrPhysicallyScanned": false
+      },
+      "ok": true,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "DELETE",
+          "path": "/admin/settings/public_api_url"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "PUT",
+          "path": "/admin/settings/public_api_url"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "DELETE",
+          "path": "/admin/settings/public_api_url"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        }
+      ],
+      "httpErrors": [
+        {
+          "status": 500,
+          "path": "/api/device-enrollments"
+        },
+        {
+          "status": 500,
+          "path": "/api/device-enrollments"
+        }
+      ],
+      "pageErrors": []
+    }
+  ],
+  "browser": "153.0.8010.12",
+  "events390": {
+    "pageErrors": [],
+    "httpErrors": [
+      {
+        "status": 500,
+        "path": "/api/device-enrollments"
+      },
+      {
+        "status": 500,
+        "path": "/api/device-enrollments"
+      }
+    ],
+    "externalBlocked": []
+  }
+}

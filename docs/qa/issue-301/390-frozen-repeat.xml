@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vatDeclaration>
+  <taxPayerRegCode>17499653</taxPayerRegCode>
+  <year>2026</year>
+  <month>9</month>
+  <declarationType>1</declarationType>
+  <version>KMD6</version>
+  <declarationBody>
+    <noSales>true</noSales>
+    <noPurchases>false</noPurchases>
+    <sumPerPartnerSales>false</sumPerPartnerSales>
+    <sumPerPartnerPurchases>false</sumPerPartnerPurchases>
+    <inputVatTotal>720.00</inputVatTotal>
+  </declarationBody>
+  <purchasesAnnex>
+    <purchaseLine>
+      <sellerRegCode>EE200000002</sellerRegCode>
+      <sellerName>SYNTHETIC 301 Supplier OÜ</sellerName>
+      <invoiceNumber>SYNTHETIC301-2026-09-INV-001</invoiceNumber>
+      <invoiceDate>2026-09-10</invoiceDate>
+      <invoiceSumVat>3720.00</invoiceSumVat>
+      <vatInPeriod>720.00</vatInPeriod>
+    </purchaseLine>
+  </purchasesAnnex>
+</vatDeclaration>

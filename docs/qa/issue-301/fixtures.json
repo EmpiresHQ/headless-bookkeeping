@@ -1,0 +1,26 @@
+{
+  "synthetic": true,
+  "node": "v24.21.0",
+  "supplierId": 1,
+  "earlierOpenPeriodId": 1,
+  "periods": [
+    {
+      "id": 2,
+      "name": "2026-08",
+      "expenseId": 1,
+      "voucherId": 1,
+      "netCents": 200000,
+      "vatCents": 48000,
+      "grossCents": 248000
+    },
+    {
+      "id": 3,
+      "name": "2026-09",
+      "expenseId": 2,
+      "voucherId": 2,
+      "netCents": 300000,
+      "vatCents": 72000,
+      "grossCents": 372000
+    }
+  ]
+}

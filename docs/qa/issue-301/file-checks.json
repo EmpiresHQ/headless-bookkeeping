@@ -1,0 +1,92 @@
+[
+  {
+    "file": "320-draft.xml",
+    "bytes": 861,
+    "sha256": "f77618ecc77fc508d9fb08ffee30926ea4b1b8438f4cab4a0fc3c291756186d7",
+    "wellFormedXml": true,
+    "fixtureValuesMatch": true
+  },
+  {
+    "file": "320-frozen-repeat.xml",
+    "bytes": 861,
+    "sha256": "f77618ecc77fc508d9fb08ffee30926ea4b1b8438f4cab4a0fc3c291756186d7",
+    "wellFormedXml": true,
+    "fixtureValuesMatch": true
+  },
+  {
+    "file": "320-frozen.xml",
+    "bytes": 861,
+    "sha256": "f77618ecc77fc508d9fb08ffee30926ea4b1b8438f4cab4a0fc3c291756186d7",
+    "wellFormedXml": true,
+    "fixtureValuesMatch": true
+  },
+  {
+    "file": "320-draft.csv",
+    "bytes": 143,
+    "sha256": "1d9c81e5fa18935521476aed7270851804629636f13da22fd461b495027b1f50",
+    "records": 2,
+    "recordWidths": [
+      17,
+      8
+    ],
+    "realCrlf": true,
+    "fixtureValuesMatch": true
+  },
+  {
+    "file": "320-frozen.csv",
+    "bytes": 143,
+    "sha256": "1d9c81e5fa18935521476aed7270851804629636f13da22fd461b495027b1f50",
+    "records": 2,
+    "recordWidths": [
+      17,
+      8
+    ],
+    "realCrlf": true,
+    "fixtureValuesMatch": true
+  },
+  {
+    "file": "390-draft.xml",
+    "bytes": 861,
+    "sha256": "f593b17dfd4df3cc40bc1f3f821a1651e5c390b52260a9708cb977b07558ad7f",
+    "wellFormedXml": true,
+    "fixtureValuesMatch": true
+  },
+  {
+    "file": "390-frozen-repeat.xml",
+    "bytes": 861,
+    "sha256": "f593b17dfd4df3cc40bc1f3f821a1651e5c390b52260a9708cb977b07558ad7f",
+    "wellFormedXml": true,
+    "fixtureValuesMatch": true
+  },
+  {
+    "file": "390-frozen.xml",
+    "bytes": 861,
+    "sha256": "f593b17dfd4df3cc40bc1f3f821a1651e5c390b52260a9708cb977b07558ad7f",
+    "wellFormedXml": true,
+    "fixtureValuesMatch": true
+  },
+  {
+    "file": "390-draft.csv",
+    "bytes": 143,
+    "sha256": "a9eb972869b63c133848d3d5db064a56f693811b21c25293a2a5bc505dfc8f6b",
+    "records": 2,
+    "recordWidths": [
+      17,
+      8
+    ],
+    "realCrlf": true,
+    "fixtureValuesMatch": true
+  },
+  {
+    "file": "390-frozen.csv",
+    "bytes": 143,
+    "sha256": "a9eb972869b63c133848d3d5db064a56f693811b21c25293a2a5bc505dfc8f6b",
+    "records": 2,
+    "recordWidths": [
+      17,
+      8
+    ],
+    "realCrlf": true,
+    "fixtureValuesMatch": true
+  }
+]

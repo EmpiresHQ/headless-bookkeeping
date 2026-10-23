@@ -1,0 +1,938 @@
+{
+  "synthetic": true,
+  "started": "2026-10-23T10:24:09.485Z",
+  "node": "v24.21.0",
+  "cases": [
+    {
+      "name": "reports",
+      "width": 320,
+      "height": 844,
+      "started": "2026-10-23T10:24:09.612Z",
+      "details": {
+        "fixture": {
+          "id": 2,
+          "name": "2026-08",
+          "expenseId": 1,
+          "voucherId": 1,
+          "netCents": 200000,
+          "vatCents": 48000,
+          "grossCents": 248000
+        },
+        "numberSaved": "SYNTHETIC301-2026-08-INV-001",
+        "numberCorrectionPreviouslyCompleted": true,
+        "saveGeometry": null,
+        "closeGeometry": {
+          "width": 272,
+          "height": 65,
+          "x": 24,
+          "y": 743,
+          "bottom": 808,
+          "inViewport": true,
+          "centerHit": true,
+          "pageOverflow": false
+        },
+        "earlierClosedViaUI": {
+          "id": 1,
+          "name": "2024-Q1",
+          "start_date": "2024-01-01",
+          "end_date": "2024-03-31",
+          "kind": "vat",
+          "status": "locked",
+          "filed_at": 1792751051,
+          "vat_report_snapshot_id": 1,
+          "created_at": 1792750692
+        },
+        "failedProof": {
+          "injectedWarningStatus": 503,
+          "closeDisabled": true,
+          "acknowledgementOffered": true,
+          "acknowledged": false,
+          "inputRetained": "2026-08"
+        },
+        "period": {
+          "id": 2,
+          "name": "2026-08",
+          "start_date": "2026-08-01",
+          "end_date": "2026-08-31",
+          "kind": "vat",
+          "status": "locked",
+          "filed_at": 1792751054,
+          "vat_report_snapshot_id": 2,
+          "created_at": 1792750717
+        },
+        "downloads": [
+          {
+            "format": "xml",
+            "phase": "draft",
+            "filename": "kmd-2026-08.xml",
+            "bytes": 861,
+            "sha256": "f77618ecc77fc508d9fb08ffee30926ea4b1b8438f4cab4a0fc3c291756186d7",
+            "button": {
+              "width": 141,
+              "height": 42.5,
+              "x": 14,
+              "y": 575.25,
+              "bottom": 617.75,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          },
+          {
+            "format": "csv",
+            "phase": "draft",
+            "filename": "kmd-2026-08.csv",
+            "bytes": 143,
+            "sha256": "1d9c81e5fa18935521476aed7270851804629636f13da22fd461b495027b1f50",
+            "button": {
+              "width": 141,
+              "height": 42.5,
+              "x": 165,
+              "y": 575.25,
+              "bottom": 617.75,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          },
+          {
+            "format": "xml",
+            "phase": "frozen",
+            "filename": "kmd-2026-08.xml",
+            "bytes": 861,
+            "sha256": "f77618ecc77fc508d9fb08ffee30926ea4b1b8438f4cab4a0fc3c291756186d7",
+            "button": {
+              "width": 141,
+              "height": 42.5,
+              "x": 14,
+              "y": 645,
+              "bottom": 687.5,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          },
+          {
+            "format": "csv",
+            "phase": "frozen",
+            "filename": "kmd-2026-08.csv",
+            "bytes": 143,
+            "sha256": "1d9c81e5fa18935521476aed7270851804629636f13da22fd461b495027b1f50",
+            "button": {
+              "width": 141,
+              "height": 42.5,
+              "x": 165,
+              "y": 645,
+              "bottom": 687.5,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          },
+          {
+            "format": "xml",
+            "phase": "frozen-repeat",
+            "filename": "kmd-2026-08.xml",
+            "bytes": 861,
+            "sha256": "f77618ecc77fc508d9fb08ffee30926ea4b1b8438f4cab4a0fc3c291756186d7",
+            "button": {
+              "width": 141,
+              "height": 42.5,
+              "x": 14,
+              "y": 645,
+              "bottom": 687.5,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          }
+        ],
+        "proofReads": [
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/warnings"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/kmd"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/statutory-report?format=xml"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/statutory-report?format=csv"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/kmd"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/warnings"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/warnings"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/warnings"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/kmd"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/warnings"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/warnings"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/kmd"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/warnings"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/submission-state"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/statutory-report?format=xml"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/statutory-report?format=csv"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/2/statutory-report?format=xml"
+          }
+        ]
+      },
+      "ok": true,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods?kind=vat"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/kmd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/expenses?include_cancelled=1"
+        },
+        {
+          "method": "GET",
+          "path": "/api/entities"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/sales-invoices"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/kmd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/statutory-report?format=xml"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/statutory-report?format=csv"
+        },
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods?kind=vat"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/1/kmd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/entities"
+        },
+        {
+          "method": "GET",
+          "path": "/api/expenses?include_cancelled=1"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/1/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/sales-invoices"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/1/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/1/kmd"
+        },
+        {
+          "method": "POST",
+          "path": "/api/reporting-periods/1/lock"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/1/kmd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/1/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods?kind=vat"
+        },
+        {
+          "method": "GET",
+          "path": "/api/expenses?include_cancelled=1"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/1/submission-state"
+        },
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods?kind=vat"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/kmd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/entities"
+        },
+        {
+          "method": "GET",
+          "path": "/api/expenses?include_cancelled=1"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/sales-invoices"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/kmd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/warnings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/reporting-periods/2/lock"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/kmd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods?kind=vat"
+        },
+        {
+          "method": "GET",
+          "path": "/api/expenses?include_cancelled=1"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/submission-state"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/statutory-report?format=xml"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/statutory-report?format=csv"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/statutory-report?format=xml"
+        }
+      ],
+      "httpErrors": [
+        {
+          "status": 503,
+          "path": "/api/reporting-periods/2/warnings"
+        },
+        {
+          "status": 503,
+          "path": "/api/reporting-periods/2/warnings"
+        },
+        {
+          "status": 503,
+          "path": "/api/reporting-periods/2/warnings"
+        },
+        {
+          "status": 503,
+          "path": "/api/reporting-periods/2/warnings"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "settings-device",
+      "width": 320,
+      "height": 844,
+      "started": "2026-10-23T10:24:15.668Z",
+      "details": {
+        "saveGeometry": {
+          "width": 68,
+          "height": 42.5,
+          "x": 30,
+          "y": 492.5,
+          "bottom": 535,
+          "inViewport": true,
+          "centerHit": true,
+          "pageOverflow": false
+        },
+        "clearGeometry": {
+          "width": 77,
+          "height": 42.5,
+          "x": 104,
+          "y": 701,
+          "bottom": 743.5,
+          "inViewport": true,
+          "centerHit": true,
+          "pageOverflow": false
+        },
+        "storedBeforeClear": "http://127.0.0.1:5301",
+        "exchanges": [
+          {
+            "v": 1,
+            "api": "http://127.0.0.1:5301",
+            "enrollmentSha256": "f96606b79766b84d95fc7dd2d2f63f378c305e9378b087fd1851311606bc9224",
+            "exchangeStatus": 201,
+            "replayStatus": 401,
+            "sessionReadStatus": 200,
+            "revokeStatus": 204,
+            "revokedReadStatus": 401,
+            "qrGeometry": {
+              "width": 252,
+              "height": 252,
+              "x": 34,
+              "y": 62.5,
+              "bottom": 314.5,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          },
+          {
+            "v": 1,
+            "api": "http://127.0.0.1:5301",
+            "enrollmentSha256": "16114970f52961d02e6162f2562ef4b55ffa3fe60b29e51eb6d62c97c71ca70f",
+            "exchangeStatus": 201,
+            "replayStatus": 401,
+            "sessionReadStatus": 200,
+            "revokeStatus": 204,
+            "revokedReadStatus": 401,
+            "qrGeometry": {
+              "width": 252,
+              "height": 252,
+              "x": 34,
+              "y": 62.5,
+              "bottom": 314.5,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          }
+        ],
+        "qrPhysicallyScanned": false
+      },
+      "ok": true,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "PUT",
+          "path": "/admin/settings/public_api_url"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "DELETE",
+          "path": "/admin/settings/public_api_url"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        }
+      ],
+      "httpErrors": [
+        {
+          "status": 500,
+          "path": "/api/device-enrollments"
+        },
+        {
+          "status": 500,
+          "path": "/api/device-enrollments"
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "reports",
+      "width": 390,
+      "height": 844,
+      "started": "2026-10-23T10:24:19.391Z",
+      "details": {
+        "fixture": {
+          "id": 3,
+          "name": "2026-09",
+          "expenseId": 2,
+          "voucherId": 2,
+          "netCents": 300000,
+          "vatCents": 72000,
+          "grossCents": 372000
+        },
+        "numberSaved": "SYNTHETIC301-2026-09-INV-001",
+        "numberCorrectionPreviouslyCompleted": true,
+        "saveGeometry": null,
+        "closeGeometry": {
+          "width": 342,
+          "height": 65,
+          "x": 24,
+          "y": 743,
+          "bottom": 808,
+          "inViewport": true,
+          "centerHit": true,
+          "pageOverflow": false
+        },
+        "earlierClosedViaUI": null,
+        "failedProof": null,
+        "period": {
+          "id": 3,
+          "name": "2026-09",
+          "start_date": "2026-09-01",
+          "end_date": "2026-09-30",
+          "kind": "vat",
+          "status": "locked",
+          "filed_at": 1792751061,
+          "vat_report_snapshot_id": 3,
+          "created_at": 1792750717
+        },
+        "downloads": [
+          {
+            "format": "xml",
+            "phase": "draft",
+            "filename": "kmd-2026-09.xml",
+            "bytes": 861,
+            "sha256": "f593b17dfd4df3cc40bc1f3f821a1651e5c390b52260a9708cb977b07558ad7f",
+            "button": {
+              "width": 176,
+              "height": 42.5,
+              "x": 14,
+              "y": 570,
+              "bottom": 612.5,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          },
+          {
+            "format": "csv",
+            "phase": "draft",
+            "filename": "kmd-2026-09.csv",
+            "bytes": 143,
+            "sha256": "a9eb972869b63c133848d3d5db064a56f693811b21c25293a2a5bc505dfc8f6b",
+            "button": {
+              "width": 176,
+              "height": 42.5,
+              "x": 200,
+              "y": 570,
+              "bottom": 612.5,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          },
+          {
+            "format": "xml",
+            "phase": "frozen",
+            "filename": "kmd-2026-09.xml",
+            "bytes": 861,
+            "sha256": "f593b17dfd4df3cc40bc1f3f821a1651e5c390b52260a9708cb977b07558ad7f",
+            "button": {
+              "width": 176,
+              "height": 42.5,
+              "x": 14,
+              "y": 645,
+              "bottom": 687.5,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          },
+          {
+            "format": "csv",
+            "phase": "frozen",
+            "filename": "kmd-2026-09.csv",
+            "bytes": 143,
+            "sha256": "a9eb972869b63c133848d3d5db064a56f693811b21c25293a2a5bc505dfc8f6b",
+            "button": {
+              "width": 176,
+              "height": 42.5,
+              "x": 200,
+              "y": 645,
+              "bottom": 687.5,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          },
+          {
+            "format": "xml",
+            "phase": "frozen-repeat",
+            "filename": "kmd-2026-09.xml",
+            "bytes": 861,
+            "sha256": "f593b17dfd4df3cc40bc1f3f821a1651e5c390b52260a9708cb977b07558ad7f",
+            "button": {
+              "width": 176,
+              "height": 42.5,
+              "x": 14,
+              "y": 645,
+              "bottom": 687.5,
+              "inViewport": true,
+              "centerHit": true,
+              "pageOverflow": false
+            }
+          }
+        ],
+        "proofReads": [
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/3/kmd"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/3/warnings"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/3/statutory-report?format=xml"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/3/statutory-report?format=csv"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/3/warnings"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/3/kmd"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/3/kmd"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/3/warnings"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/3/submission-state"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/3/statutory-report?format=xml"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/3/statutory-report?format=csv"
+          },
+          {
+            "method": "GET",
+            "path": "/api/reporting-periods/3/statutory-report?format=xml"
+          }
+        ]
+      },
+      "ok": true,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods?kind=vat"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/kmd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/2/submission-state"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/1/submission-state"
+        },
+        {
+          "method": "GET",
+          "path": "/api/expenses?include_cancelled=1"
+        },
+        {
+          "method": "GET",
+          "path": "/api/entities"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/sales-invoices"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/statutory-report?format=xml"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/statutory-report?format=csv"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/kmd"
+        },
+        {
+          "method": "POST",
+          "path": "/api/reporting-periods/3/lock"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/kmd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/warnings"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods?kind=vat"
+        },
+        {
+          "method": "GET",
+          "path": "/api/expenses?include_cancelled=1"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/submission-state"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/statutory-report?format=xml"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/statutory-report?format=csv"
+        },
+        {
+          "method": "GET",
+          "path": "/api/reporting-periods/3/statutory-report?format=xml"
+        }
+      ],
+      "httpErrors": [],
+      "pageErrors": []
+    },
+    {
+      "name": "settings-device",
+      "width": 390,
+      "height": 844,
+      "started": "2026-10-23T10:24:23.157Z",
+      "ok": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n401 !== 201\n\n    at /root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:41:790\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async run (/root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:16:258)\n    at async /root/.cache/hbk-worktrees/issue-301/docs/qa/issue-301/browser.cjs:39:3",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/triage/needs-triage"
+        },
+        {
+          "method": "GET",
+          "path": "/api/approvals/pending"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "PUT",
+          "path": "/admin/settings/public_api_url"
+        },
+        {
+          "method": "GET",
+          "path": "/admin/settings"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        },
+        {
+          "method": "POST",
+          "path": "/api/device-enrollments"
+        }
+      ],
+      "httpErrors": [
+        {
+          "status": 500,
+          "path": "/api/device-enrollments"
+        }
+      ],
+      "pageErrors": []
+    }
+  ],
+  "browser": "153.0.8010.12",
+  "events320": {
+    "pageErrors": [],
+    "httpErrors": [
+      {
+        "status": 503,
+        "path": "/api/reporting-periods/2/warnings"
+      },
+      {
+        "status": 503,
+        "path": "/api/reporting-periods/2/warnings"
+      },
+      {
+        "status": 503,
+        "path": "/api/reporting-periods/2/warnings"
+      },
+      {
+        "status": 503,
+        "path": "/api/reporting-periods/2/warnings"
+      },
+      {
+        "status": 500,
+        "path": "/api/device-enrollments"
+      },
+      {
+        "status": 500,
+        "path": "/api/device-enrollments"
+      }
+    ],
+    "externalBlocked": []
+  },
+  "events390": {
+    "pageErrors": [],
+    "httpErrors": [
+      {
+        "status": 500,
+        "path": "/api/device-enrollments"
+      }
+    ],
+    "externalBlocked": []
+  }
+}

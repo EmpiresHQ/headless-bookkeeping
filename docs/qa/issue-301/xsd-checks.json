@@ -1,0 +1,36 @@
+{
+  "schemaPath": "packages/server/test/fixtures/vatdeclaration.xsd",
+  "schemaSha256": "51cf0546c2ea48be7660e3be4f918a4fb61d60193aa76e047fc759198cd1b17d",
+  "checks": [
+    {
+      "file": "320-draft.xml",
+      "valid": true,
+      "errors": []
+    },
+    {
+      "file": "320-frozen-repeat.xml",
+      "valid": true,
+      "errors": []
+    },
+    {
+      "file": "320-frozen.xml",
+      "valid": true,
+      "errors": []
+    },
+    {
+      "file": "390-draft.xml",
+      "valid": true,
+      "errors": []
+    },
+    {
+      "file": "390-frozen-repeat.xml",
+      "valid": true,
+      "errors": []
+    },
+    {
+      "file": "390-frozen.xml",
+      "valid": true,
+      "errors": []
+    }
+  ]
+}

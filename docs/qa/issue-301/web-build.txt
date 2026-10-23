@@ -1,0 +1,291 @@
+
+> @headless-bookkeeping/web@0.0.1 build
+> tsc -b && vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 2130 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/pdfjs/6.3.289/cmaps/CNS2-V.bcmap                                0.09 kB
+dist/pdfjs/6.3.289/cmaps/Roman.bcmap                                 0.10 kB
+dist/pdfjs/6.3.289/cmaps/Katakana.bcmap                              0.10 kB
+dist/pdfjs/6.3.289/cmaps/ETenms-B5-H.bcmap                           0.10 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS-UCS2-HW-H.bcmap                      0.12 kB
+dist/pdfjs/6.3.289/cmaps/Hiragana.bcmap                              0.12 kB
+dist/pdfjs/6.3.289/cmaps/Hankaku.bcmap                               0.13 kB
+dist/pdfjs/6.3.289/cmaps/B5-V.bcmap                                  0.14 kB
+dist/pdfjs/6.3.289/cmaps/CNS1-V.bcmap                                0.14 kB
+dist/pdfjs/6.3.289/cmaps/B5pc-V.bcmap                                0.14 kB
+dist/pdfjs/6.3.289/cmaps/HKdla-B5-V.bcmap                            0.15 kB
+dist/pdfjs/6.3.289/cmaps/HKdlb-B5-V.bcmap                            0.15 kB
+dist/pdfjs/6.3.289/cmaps/HKgccs-B5-V.bcmap                           0.15 kB
+dist/pdfjs/6.3.289/cmaps/HKm314-B5-V.bcmap                           0.15 kB
+dist/pdfjs/6.3.289/cmaps/HKm471-B5-V.bcmap                           0.15 kB
+dist/pdfjs/6.3.289/cmaps/UniCNS-UCS2-V.bcmap                         0.16 kB
+dist/pdfjs/6.3.289/cmaps/UniCNS-UTF16-V.bcmap                        0.16 kB
+dist/pdfjs/6.3.289/cmaps/UniCNS-UTF8-V.bcmap                         0.16 kB
+dist/pdfjs/6.3.289/cmaps/ETHK-B5-V.bcmap                             0.16 kB
+dist/pdfjs/6.3.289/cmaps/ETen-B5-V.bcmap                             0.16 kB
+dist/pdfjs/6.3.289/cmaps/HKscs-B5-V.bcmap                            0.16 kB
+dist/pdfjs/6.3.289/cmaps/KSC-V.bcmap                                 0.16 kB
+dist/pdfjs/6.3.289/cmaps/UniCNS-UTF32-V.bcmap                        0.16 kB
+dist/pdfjs/6.3.289/cmaps/KSC-EUC-V.bcmap                             0.16 kB
+dist/pdfjs/6.3.289/cmaps/UniKS-UTF16-V.bcmap                         0.16 kB
+dist/pdfjs/6.3.289/cmaps/KSC-Johab-V.bcmap                           0.17 kB
+dist/pdfjs/6.3.289/cmaps/KSCms-UHC-V.bcmap                           0.17 kB
+dist/pdfjs/6.3.289/cmaps/KSCpc-EUC-V.bcmap                           0.17 kB
+dist/pdfjs/6.3.289/cmaps/V.bcmap                                     0.17 kB
+dist/pdfjs/6.3.289/cmaps/UniKS-UTF32-V.bcmap                         0.17 kB
+dist/pdfjs/6.3.289/cmaps/78-V.bcmap                                  0.17 kB
+dist/pdfjs/6.3.289/cmaps/KSCms-UHC-HW-V.bcmap                        0.17 kB
+dist/pdfjs/6.3.289/cmaps/UniKS-UTF8-V.bcmap                          0.17 kB
+dist/pdfjs/6.3.289/cmaps/EUC-V.bcmap                                 0.17 kB
+dist/pdfjs/6.3.289/cmaps/RKSJ-V.bcmap                                0.17 kB
+dist/pdfjs/6.3.289/cmaps/ETenms-B5-V.bcmap                           0.17 kB
+dist/pdfjs/6.3.289/cmaps/78-EUC-V.bcmap                              0.17 kB
+dist/pdfjs/6.3.289/cmaps/78-RKSJ-V.bcmap                             0.17 kB
+dist/pdfjs/6.3.289/cmaps/GB-V.bcmap                                  0.18 kB
+dist/pdfjs/6.3.289/cmaps/GBT-V.bcmap                                 0.18 kB
+dist/pdfjs/6.3.289/cmaps/UniGB-UTF16-V.bcmap                         0.18 kB
+dist/pdfjs/6.3.289/cmaps/UniKS-UCS2-V.bcmap                          0.18 kB
+dist/pdfjs/6.3.289/cmaps/GB-EUC-V.bcmap                              0.18 kB
+dist/pdfjs/6.3.289/cmaps/WP-Symbol.bcmap                             0.18 kB
+dist/pdfjs/6.3.289/cmaps/GBK-EUC-V.bcmap                             0.18 kB
+dist/pdfjs/6.3.289/cmaps/GBT-EUC-V.bcmap                             0.18 kB
+dist/pdfjs/6.3.289/cmaps/GBKp-EUC-V.bcmap                            0.18 kB
+dist/pdfjs/6.3.289/cmaps/GBpc-EUC-V.bcmap                            0.18 kB
+dist/pdfjs/6.3.289/cmaps/UniGB-UTF8-V.bcmap                          0.18 kB
+dist/pdfjs/6.3.289/cmaps/GBTpc-EUC-V.bcmap                           0.18 kB
+dist/pdfjs/6.3.289/cmaps/UniGB-UTF32-V.bcmap                         0.18 kB
+dist/pdfjs/6.3.289/cmaps/UniGB-UCS2-V.bcmap                          0.19 kB
+dist/pdfjs/6.3.289/cmaps/Ext-V.bcmap                                 0.22 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-GB1-0.bcmap                           0.22 kB
+dist/pdfjs/6.3.289/cmaps/Ext-RKSJ-V.bcmap                            0.22 kB
+dist/pdfjs/6.3.289/cmaps/GBK2K-V.bcmap                               0.22 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-Japan1-0.bcmap                        0.23 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-Japan1-1.bcmap                        0.23 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-Japan1-2.bcmap                        0.23 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-Korea1-0.bcmap                        0.24 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-Japan1-3.bcmap                        0.24 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-GB1-1.bcmap                           0.25 kB
+dist/pdfjs/6.3.289/cmaps/NWP-V.bcmap                                 0.25 kB
+dist/pdfjs/6.3.289/cmaps/90pv-RKSJ-V.bcmap                           0.26 kB
+dist/pdfjs/6.3.289/cmaps/Add-V.bcmap                                 0.28 kB
+dist/pdfjs/6.3.289/cmaps/Add-RKSJ-V.bcmap                            0.29 kB
+dist/pdfjs/6.3.289/cmaps/78ms-RKSJ-V.bcmap                           0.29 kB
+dist/pdfjs/6.3.289/cmaps/90ms-RKSJ-V.bcmap                           0.29 kB
+dist/pdfjs/6.3.289/cmaps/90msp-RKSJ-V.bcmap                          0.29 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-CNS1-0.bcmap                          0.32 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-Japan1-4.bcmap                        0.34 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-CNS1-1.bcmap                          0.37 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-CNS1-2.bcmap                          0.38 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-Korea1-1.bcmap                        0.39 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-Korea1-2.bcmap                        0.39 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-CNS1-3.bcmap                          0.40 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-CNS1-4.bcmap                          0.41 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-CNS1-5.bcmap                          0.41 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-CNS1-6.bcmap                          0.41 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-Japan1-5.bcmap                        0.43 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-GB1-2.bcmap                           0.47 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-GB1-3.bcmap                           0.47 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-Japan1-6.bcmap                        0.49 kB
+dist/pdfjs/6.3.289/cmaps/CNS2-H.bcmap                                0.50 kB
+dist/index.html                                                      0.51 kB │ gzip:   0.31 kB
+dist/pdfjs/6.3.289/cmaps/GB-H.bcmap                                  0.53 kB
+dist/pdfjs/6.3.289/cmaps/RKSJ-H.bcmap                                0.53 kB
+dist/pdfjs/6.3.289/cmaps/GB-EUC-H.bcmap                              0.55 kB
+dist/pdfjs/6.3.289/cmaps/H.bcmap                                     0.55 kB
+dist/pdfjs/6.3.289/wasm/LICENSE_PDFJS_JBIG2                          0.56 kB
+dist/pdfjs/6.3.289/cmaps/GBpc-EUC-H.bcmap                            0.56 kB
+dist/pdfjs/6.3.289/cmaps/EUC-H.bcmap                                 0.58 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-GB1-4.bcmap                           0.60 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-GB1-5.bcmap                           0.63 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS-UTF16-V.bcmap                        0.64 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS2004-UTF16-V.bcmap                    0.65 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS-UCS2-V.bcmap                         0.66 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS-UTF32-V.bcmap                        0.68 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS-UTF8-V.bcmap                         0.68 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS-UCS2-HW-V.bcmap                      0.68 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS2004-UTF32-V.bcmap                    0.68 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS2004-UTF8-V.bcmap                     0.68 kB
+dist/pdfjs/6.3.289/cmaps/UniJISX0213-UTF32-V.bcmap                   0.68 kB
+dist/pdfjs/6.3.289/cmaps/UniJISX02132004-UTF32-V.bcmap               0.69 kB
+dist/pdfjs/6.3.289/cmaps/UniJISPro-UCS2-V.bcmap                      0.69 kB
+dist/pdfjs/6.3.289/cmaps/UniJISPro-UCS2-HW-V.bcmap                   0.71 kB
+dist/pdfjs/6.3.289/cmaps/CNS1-H.bcmap                                0.71 kB
+dist/pdfjs/6.3.289/cmaps/90msp-RKSJ-H.bcmap                          0.72 kB
+dist/pdfjs/6.3.289/cmaps/90ms-RKSJ-H.bcmap                           0.72 kB
+dist/pdfjs/6.3.289/cmaps/UniJISPro-UTF8-V.bcmap                      0.73 kB
+dist/pdfjs/6.3.289/cmaps/83pv-RKSJ-H.bcmap                           0.91 kB
+dist/pdfjs/6.3.289/cmaps/90pv-RKSJ-H.bcmap                           0.98 kB
+dist/pdfjs/6.3.289/wasm/LICENSE_PDFJS_QCMS                           1.04 kB
+dist/pdfjs/6.3.289/cmaps/B5-H.bcmap                                  1.09 kB
+dist/pdfjs/6.3.289/cmaps/B5pc-H.bcmap                                1.10 kB
+dist/pdfjs/6.3.289/wasm/LICENSE_QCMS                                 1.12 kB
+dist/pdfjs/6.3.289/cmaps/ETen-B5-H.bcmap                             1.13 kB
+dist/pdfjs/6.3.289/wasm/LICENSE_PDFJS_OPENJPEG                       1.29 kB
+dist/pdfjs/6.3.289/standard_fonts/LICENSE_FOXIT                      1.55 kB
+dist/pdfjs/6.3.289/cmaps/HKm314-B5-H.bcmap                           1.77 kB
+dist/pdfjs/6.3.289/cmaps/CNS-EUC-H.bcmap                             1.78 kB
+dist/pdfjs/6.3.289/cmaps/KSC-H.bcmap                                 1.83 kB
+dist/pdfjs/6.3.289/cmaps/KSC-EUC-H.bcmap                             1.85 kB
+dist/pdfjs/6.3.289/cmaps/CNS-EUC-V.bcmap                             1.92 kB
+dist/pdfjs/6.3.289/cmaps/KSCpc-EUC-H.bcmap                           2.02 kB
+dist/pdfjs/6.3.289/cmaps/LICENSE                                     2.08 kB
+dist/pdfjs/6.3.289/wasm/LICENSE_OPENJPEG                             2.11 kB
+dist/pdfjs/6.3.289/cmaps/HKm471-B5-H.bcmap                           2.17 kB
+dist/pdfjs/6.3.289/cmaps/HKgccs-B5-H.bcmap                           2.29 kB
+dist/pdfjs/6.3.289/cmaps/78-H.bcmap                                  2.38 kB
+dist/pdfjs/6.3.289/cmaps/78-RKSJ-H.bcmap                             2.40 kB
+dist/pdfjs/6.3.289/cmaps/78-EUC-H.bcmap                              2.40 kB
+dist/pdfjs/6.3.289/cmaps/Add-RKSJ-H.bcmap                            2.41 kB
+dist/pdfjs/6.3.289/cmaps/HKdlb-B5-H.bcmap                            2.41 kB
+dist/pdfjs/6.3.289/cmaps/Add-H.bcmap                                 2.42 kB
+dist/pdfjs/6.3.289/cmaps/Ext-H.bcmap                                 2.54 kB
+dist/pdfjs/6.3.289/cmaps/Ext-RKSJ-H.bcmap                            2.54 kB
+dist/pdfjs/6.3.289/cmaps/78ms-RKSJ-H.bcmap                           2.65 kB
+dist/pdfjs/6.3.289/cmaps/HKdla-B5-H.bcmap                            2.65 kB
+dist/pdfjs/6.3.289/cmaps/NWP-H.bcmap                                 2.77 kB
+dist/pdfjs/6.3.289/cmaps/KSCms-UHC-H.bcmap                           2.79 kB
+dist/pdfjs/6.3.289/cmaps/KSCms-UHC-HW-H.bcmap                        2.79 kB
+dist/pdfjs/6.3.289/cmaps/ETHK-B5-H.bcmap                             4.43 kB
+dist/pdfjs/6.3.289/cmaps/HKscs-B5-H.bcmap                            4.44 kB
+dist/pdfjs/6.3.289/iccs/LICENSE                                      6.55 kB
+dist/pdfjs/6.3.289/cmaps/GBT-H.bcmap                                 7.27 kB
+dist/pdfjs/6.3.289/cmaps/GBT-EUC-H.bcmap                             7.29 kB
+dist/pdfjs/6.3.289/cmaps/GBTpc-EUC-H.bcmap                           7.30 kB
+dist/pdfjs/6.3.289/iccs/CGATS001Compat-v2-micro.icc                  8.46 kB
+dist/pdfjs/6.3.289/wasm/LICENSE_JBIG2                               12.86 kB
+dist/pdfjs/6.3.289/cmaps/GBKp-EUC-H.bcmap                           14.69 kB
+dist/pdfjs/6.3.289/cmaps/GBK-EUC-H.bcmap                            14.69 kB
+dist/pdfjs/6.3.289/standard_fonts/FoxitSymbol.pfb                   16.73 kB
+dist/pdfjs/6.3.289/cmaps/KSC-Johab-H.bcmap                          16.79 kB
+dist/pdfjs/6.3.289/standard_fonts/FoxitFixed.pfb                    17.60 kB
+dist/pdfjs/6.3.289/standard_fonts/FoxitFixedBold.pfb                18.06 kB
+dist/pdfjs/6.3.289/standard_fonts/FoxitFixedItalic.pfb              18.75 kB
+dist/pdfjs/6.3.289/standard_fonts/FoxitFixedBoldItalic.pfb          19.15 kB
+dist/pdfjs/6.3.289/standard_fonts/FoxitSerifBold.pfb                19.40 kB
+dist/pdfjs/6.3.289/standard_fonts/FoxitSerif.pfb                    19.47 kB
+dist/pdfjs/6.3.289/cmaps/GBK2K-H.bcmap                              19.66 kB
+dist/pdfjs/6.3.289/standard_fonts/FoxitSerifBoldItalic.pfb          20.73 kB
+dist/pdfjs/6.3.289/standard_fonts/FoxitSerifItalic.pfb              21.23 kB
+dist/pdfjs/6.3.289/standard_fonts/LICENSE_LIBERATION                22.15 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-Korea1-UCS2.bcmap                    23.29 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS-UCS2-H.bcmap                        25.44 kB
+dist/pdfjs/6.3.289/cmaps/UniKS-UCS2-H.bcmap                         25.78 kB
+dist/pdfjs/6.3.289/cmaps/UniKS-UTF16-H.bcmap                        26.33 kB
+dist/pdfjs/6.3.289/cmaps/UniKS-UTF32-H.bcmap                        26.45 kB
+dist/pdfjs/6.3.289/cmaps/UniKS-UTF8-H.bcmap                         27.79 kB
+dist/pdfjs/6.3.289/standard_fonts/FoxitDingbats.pfb                 29.51 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-GB1-UCS2.bcmap                       33.97 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS-UTF16-H.bcmap                       39.44 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS2004-UTF16-H.bcmap                   39.53 kB
+dist/pdfjs/6.3.289/cmaps/UniJISX0213-UTF32-H.bcmap                  40.52 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS-UTF32-H.bcmap                       40.54 kB
+dist/pdfjs/6.3.289/cmaps/UniJISX02132004-UTF32-H.bcmap              40.61 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS2004-UTF32-H.bcmap                   40.63 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-Japan1-UCS2.bcmap                    40.95 kB
+dist/pdfjs/6.3.289/cmaps/Adobe-CNS1-UCS2.bcmap                      41.19 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS-UTF8-H.bcmap                        41.70 kB
+dist/pdfjs/6.3.289/cmaps/UniJIS2004-UTF8-H.bcmap                    41.78 kB
+dist/pdfjs/6.3.289/cmaps/UniGB-UCS2-H.bcmap                         43.37 kB
+dist/pdfjs/6.3.289/cmaps/UniGB-UTF16-H.bcmap                        44.09 kB
+dist/pdfjs/6.3.289/cmaps/UniGB-UTF32-H.bcmap                        45.74 kB
+dist/pdfjs/6.3.289/cmaps/UniGB-UTF8-H.bcmap                         46.84 kB
+dist/pdfjs/6.3.289/cmaps/UniCNS-UCS2-H.bcmap                        48.28 kB
+dist/pdfjs/6.3.289/cmaps/UniCNS-UTF16-H.bcmap                       50.42 kB
+dist/pdfjs/6.3.289/cmaps/UniCNS-UTF32-H.bcmap                       52.68 kB
+dist/pdfjs/6.3.289/cmaps/UniCNS-UTF8-H.bcmap                        53.63 kB
+dist/pdfjs/6.3.289/wasm/qcms_bg.wasm                                96.59 kB
+dist/pdfjs/6.3.289/wasm/jbig2.wasm                                 104.85 kB
+dist/pdfjs/6.3.289/standard_fonts/LiberationSans-BoldItalic.ttf    135.12 kB
+dist/pdfjs/6.3.289/standard_fonts/LiberationSans-Bold.ttf          137.05 kB
+dist/pdfjs/6.3.289/standard_fonts/LiberationSans-Regular.ttf       139.51 kB
+dist/pdfjs/6.3.289/wasm/jbig2_nowasm_fallback.js                   145.70 kB
+dist/pdfjs/6.3.289/standard_fonts/LiberationSans-Italic.ttf        162.04 kB
+dist/pdfjs/6.3.289/wasm/openjpeg.wasm                              252.03 kB
+dist/pdfjs/6.3.289/wasm/openjpeg_nowasm_fallback.js                451.59 kB
+dist/assets/pdf.worker.min-BmVo14Nb.mjs                          1,317.03 kB
+dist/assets/index-Bttjh17n.css                                      44.09 kB │ gzip:   9.49 kB
+dist/assets/pdf.worker.min-LAOCk-LR.js                               0.07 kB │ gzip:   0.09 kB
+dist/assets/relativeTime-CGTlYrz7.js                                 0.29 kB │ gzip:   0.17 kB
+dist/assets/AmountText-BSvr4TCB.js                                   0.30 kB │ gzip:   0.26 kB
+dist/assets/format-ZIsHwniv.js                                       0.30 kB │ gzip:   0.23 kB
+dist/assets/x-VT2yKmG8.js                                            0.33 kB │ gzip:   0.26 kB
+dist/assets/LinkButton-B_F8Yu-L.js                                   0.35 kB │ gzip:   0.26 kB
+dist/assets/Chip-xJSuiBew.js                                         0.37 kB │ gzip:   0.27 kB
+dist/assets/useSheet-DLtamx2m.js                                     0.38 kB │ gzip:   0.25 kB
+dist/assets/useSeg-Bs1cmLNB.js                                       0.50 kB │ gzip:   0.32 kB
+dist/assets/format-DULlYMUa.js                                       0.52 kB │ gzip:   0.32 kB
+dist/assets/LoadError-CqRZOvpI.js                                    0.54 kB │ gzip:   0.37 kB
+dist/assets/GroupHeader-BE8IQW2m.js                                  0.56 kB │ gzip:   0.30 kB
+dist/assets/entityOptions-Gg3z1mqC.js                                0.59 kB │ gzip:   0.36 kB
+dist/assets/SearchInput-Cgys0iGn.js                                  0.82 kB │ gzip:   0.51 kB
+dist/assets/searchText-DpKqDdzP.js                                   0.88 kB │ gzip:   0.54 kB
+dist/assets/queueRun-DtPxQh-Q.js                                     0.89 kB │ gzip:   0.47 kB
+dist/assets/file-image-DfjSAFmm.js                                   0.95 kB │ gzip:   0.47 kB
+dist/assets/money-CxGBWYkj.js                                        1.02 kB │ gzip:   0.59 kB
+dist/assets/DocPreviewRow-DDi-G7F_.js                                1.03 kB │ gzip:   0.61 kB
+dist/assets/SegmentedControl-CtwkafE3.js                             1.09 kB │ gzip:   0.60 kB
+dist/assets/CategoriesScreen-BBJrZ2bk.js                             1.10 kB │ gzip:   0.67 kB
+dist/assets/StatementsScreen-h7-3Mm4R.js                             1.49 kB │ gzip:   0.83 kB
+dist/assets/PlaceOfSupplyControls-B-X7gYjX.js                        1.52 kB │ gzip:   0.73 kB
+dist/assets/pendingOperation-DGHxHGFh.js                             1.60 kB │ gzip:   0.81 kB
+dist/assets/Lookup-C4KbFk6j.js                                       1.61 kB │ gzip:   0.85 kB
+dist/assets/useInboxCompletion-BqL7Ch1g.js                           1.80 kB │ gzip:   0.88 kB
+dist/assets/SettingsScreen-BQ7L1gVF.js                               1.81 kB │ gzip:   0.84 kB
+dist/assets/TelegramScreen-Cwdo1Euy.js                               2.13 kB │ gzip:   1.04 kB
+dist/assets/CreditNoteScreen-CPvXlX4n.js                             2.42 kB │ gzip:   1.15 kB
+dist/assets/books-Bs_c-6ar.js                                        2.46 kB │ gzip:   1.10 kB
+dist/assets/settings-Bk69Kyhg.js                                     2.70 kB │ gzip:   1.18 kB
+dist/assets/reason-DdtOHHWo.js                                       2.76 kB │ gzip:   1.12 kB
+dist/assets/returnNavigation-BUUsgM6Q.js                             2.81 kB │ gzip:   1.36 kB
+dist/assets/lineResults-15Lsk96d.js                                  2.94 kB │ gzip:   1.14 kB
+dist/assets/LlmScreen-CwEVxlj_.js                                    3.01 kB │ gzip:   1.20 kB
+dist/assets/screenEntry-VMMEiXlA.js                                  3.10 kB │ gzip:   1.33 kB
+dist/assets/reports-Dn8VN4wF.js                                      3.28 kB │ gzip:   1.41 kB
+dist/assets/checkStatus-CUNSSrXd.js                                  3.40 kB │ gzip:   1.44 kB
+dist/assets/CreditNotesSegment-DyXA9NV2.js                           3.82 kB │ gzip:   1.69 kB
+dist/assets/chips-Dr2F6aGr.js                                        3.90 kB │ gzip:   1.66 kB
+dist/assets/PolicyScreen-82gs2JYQ.js                                 4.36 kB │ gzip:   1.94 kB
+dist/assets/BooksRow-DUXLJHH8.js                                     4.40 kB │ gzip:   1.92 kB
+dist/assets/DocumentsSegment-CfXQ9mV9.js                             4.42 kB │ gzip:   2.07 kB
+dist/assets/CreditNoteCreateScreen-D9mfO9IQ.js                       4.52 kB │ gzip:   2.01 kB
+dist/assets/useQueries-DlQx-8hr.js                                   4.56 kB │ gzip:   1.90 kB
+dist/assets/ReportsScreen-DrvC26Sh.js                                4.56 kB │ gzip:   2.14 kB
+dist/assets/filters-F_RwM1kj.js                                      4.96 kB │ gzip:   2.23 kB
+dist/assets/bank-DfU3MGZa.js                                         5.16 kB │ gzip:   2.16 kB
+dist/assets/SettingField-DGctaLuR.js                                 5.28 kB │ gzip:   2.26 kB
+dist/assets/Form-Bd_5XEk3.js                                         5.30 kB │ gzip:   2.33 kB
+dist/assets/EntitiesScreen-BWgyPD-M.js                               5.55 kB │ gzip:   2.37 kB
+dist/assets/SubmissionsScreen-_0u21wLd.js                            5.82 kB │ gzip:   2.37 kB
+dist/assets/useOpenOriginal-BKvNXzO3.js                              6.32 kB │ gzip:   2.39 kB
+dist/assets/InvoiceScreen-Bd_b18lE.js                                6.38 kB │ gzip:   2.62 kB
+dist/assets/DocumentScreen-CEzFBDSN.js                               6.60 kB │ gzip:   2.59 kB
+dist/assets/PeriodItemsScreen-BR_Bnzbn.js                            6.78 kB │ gzip:   2.68 kB
+dist/assets/UploadDocumentSheet-Dy8_sbgR.js                          7.37 kB │ gzip:   2.97 kB
+dist/assets/MailboxScreen-loJsu6bE.js                                7.63 kB │ gzip:   3.05 kB
+dist/assets/EntityScreen-BqFXywEw.js                                 8.33 kB │ gzip:   3.28 kB
+dist/assets/OrganizationScreen-CJdKADrz.js                           8.46 kB │ gzip:   3.33 kB
+dist/assets/InboxScreen-DTI9MW1G.js                                  9.12 kB │ gzip:   3.71 kB
+dist/assets/ImportScreen-BfVDG8Er.js                                 9.59 kB │ gzip:   3.29 kB
+dist/assets/ExpenseScreen-ctjfhwVi.js                               13.68 kB │ gzip:   5.01 kB
+dist/assets/StatementScreen-yVdW_7D6.js                             15.49 kB │ gzip:   5.72 kB
+dist/assets/PeriodScreen-J_nxI7aA.js                                16.01 kB │ gzip:   5.49 kB
+dist/assets/posting-Xli-G-Pt.js                                     17.91 kB │ gzip:   6.49 kB
+dist/assets/uploadFlow-CLP0LkxW.js                                  21.30 kB │ gzip:   7.19 kB
+dist/assets/ApprovalScreen-Dn3L9vkO.js                              22.60 kB │ gzip:   7.33 kB
+dist/assets/EnrollScreen-CZfuIeds.js                                26.33 kB │ gzip:  10.56 kB
+dist/assets/BooksScreen-BBI5C8lh.js                                 32.46 kB │ gzip:  10.65 kB
+dist/assets/Sheet--AEXzYrR.js                                       33.47 kB │ gzip:  10.34 kB
+dist/assets/TxScreen-DDZNPKcO.js                                    36.56 kB │ gzip:  12.14 kB
+dist/assets/TriageDocScreen-C3yyJriK.js                             50.21 kB │ gzip:  14.11 kB
+dist/assets/index-CxKOkeYi.js                                      420.22 kB │ gzip: 134.43 kB
+dist/assets/pdf-DePZ4HI-.js                                        541.19 kB │ gzip: 164.82 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 6.59s
