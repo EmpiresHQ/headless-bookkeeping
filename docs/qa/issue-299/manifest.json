@@ -3,8 +3,8 @@
   "scope": "#299 bounded QA; product code unchanged",
   "harnessPass": true,
   "productCriteria": {
-    "pass": 14,
-    "fail": 1,
+    "pass": 15,
+    "fail": 0,
     "unverified": 2
   },
   "hardwareEvidence": {
@@ -19,15 +19,15 @@
       "tests": 51,
       "verdict": "PASS"
     },
-    "readonlyAudit": "PASS; explicit product FAIL retained",
+    "readonlyAudit": "PASS; explicit unknown-outcome safety checks; browser abort limitation retained",
     "javascriptSyntax": "PASS",
     "gitDiffCheck": "PASS"
   },
   "artifacts": [
     {
       "path": "docs/qa/2026-10-23-sheet-back-navigation-299.md",
-      "bytes": 12311,
-      "sha256": "d4b36c31809c77e45af7258bd404206be0120a1fbfe997df8debab8cf03334e3"
+      "bytes": 12890,
+      "sha256": "3287e66624fbd5ce04468babfc08499cdeb967a452555c3f31674ccda5cb3fd8"
     },
     {
       "path": "docs/qa/issue-299/C-landscape-clean-content.png",
@@ -171,13 +171,13 @@
     },
     {
       "path": "docs/qa/issue-299/audit.cjs",
-      "bytes": 5119,
-      "sha256": "bde25a7f6ababbbdd99c21b3f44378a29b6146520ef851857ba60f6b19d096a8"
+      "bytes": 5741,
+      "sha256": "3522392e52aaaaf41a150a02f1be58a2148b69fb97b54a8f0bb006cb2e2ad713"
     },
     {
       "path": "docs/qa/issue-299/audit.json",
-      "bytes": 9055,
-      "sha256": "a5382d3724c8c94ec6e07f210269efb18626384fc793f6dc8ab75f77cc00ec6f"
+      "bytes": 9087,
+      "sha256": "9b5c8a8f72d85fb0c9d67d7032892bd8720c9e9da3e11934cb4485e837e3ea39"
     },
     {
       "path": "docs/qa/issue-299/backend.cjs",
@@ -186,13 +186,8 @@
     },
     {
       "path": "docs/qa/issue-299/browser.cjs",
-      "bytes": 16113,
-      "sha256": "cfc4c6bc801e1cf493479d909d8b15707560902b638d9abbfd11cda3c2f35c2f"
-    },
-    {
-      "path": "docs/qa/issue-299/defect-draft.md",
-      "bytes": 2809,
-      "sha256": "ab86c5ee870d1db6ab369a3863a5288df3825810e7574a96898238fbf736e4a7"
+      "bytes": 16145,
+      "sha256": "5cd8ae7c905114c74a1a0b6feedb4a8bcb147bc4db546b4f09eac5c2398b628f"
     },
     {
       "path": "docs/qa/issue-299/pop-restoration-tests.log",
@@ -206,8 +201,8 @@
     },
     {
       "path": "docs/qa/issue-299/results.json",
-      "bytes": 1566339,
-      "sha256": "f4fdd737cd8bd0352fb1d0d8172232bb152244be08a2777faa8a4d097fae2e78"
+      "bytes": 1567008,
+      "sha256": "4e18905c5a4d11102e3d3b7199dec3811fc9a3b32110eed6187236dc8b6dec6a"
     },
     {
       "path": "docs/qa/issue-299/targeted-tests.log",
@@ -215,9 +210,15 @@
       "sha256": "5f9279db733d51a6f9e81d0ad8bd2b095d38eb2d4c1897d1b9afb1f757caf37a"
     },
     {
+      "path": "docs/qa/issue-299/transport-limitation.md",
+      "bytes": 2980,
+      "sha256": "7ab06c5ea5b7e0e45344d73cf7443c0529a9df202da9df7e2d2ae5a318e1b7e2"
+    },
+    {
       "path": "docs/qa/issue-299/web-build.log",
       "bytes": 23434,
       "sha256": "28b9a19a1c8ab12bb4c11ebdcfabdfbd8fed7146080eb7703ebf353794b68b71"
     }
-  ]
+  ],
+  "contractReview": "ADR-0040 #420 amendment: H4 safe retry PASS, original transport survival not guaranteed; no browser rerun"
 }

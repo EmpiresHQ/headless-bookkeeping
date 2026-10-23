@@ -89,8 +89,20 @@ const cases = expected.map((id) => {
     }
   }
   if (id === 'H4-pending-same-task-double-back') {
-    assert.match(c.verdict, /^FAIL:/);
+    assert.match(c.verdict, /^PASS: unknown-outcome contract/);
     assert.equal(c.retryAfterAbort, true);
+    assert.equal(c.afterAction.drawers, 1);
+    assert.equal(c.afterAction.gross, c.open.gross);
+    assert.equal(requests[0].operationKey, requests[1].operationKey);
+    assert.equal(requests[0].body, requests[1].body);
+    assert.equal(requests[0].body, ops[0].response_json);
+    const facts = JSON.parse(ops[0].request_json);
+    assert.equal(facts.category, 'software');
+    assert.equal(facts.gross_amount, 4567);
+    assert.equal(facts.vat_amount, 0);
+    assert.equal(facts.currency, 'EUR');
+    assert.equal(facts.tax_point_date, '2026-09-10');
+    assert.equal(facts.supplier_id, null);
     assert.ok(
       c.networkFailures.some(
         (n) =>

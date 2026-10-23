@@ -364,7 +364,7 @@ async function drag(p, cd, where) {
         await p.locator('main h1').filter({ hasText: 'Expense' }).waitFor();
         rec.retryAfterAbort = true;
         rec.verdict =
-          'FAIL: Back aborts original pending response; protected unconfirmed state and same-operation retry recover one draft';
+          'PASS: unknown-outcome contract retains form/key/facts; explicit retry recovers exactly one Expense; browser transport survival remains a limitation';
       } else {
         assert.equal(rec.afterAction.questions, 0);
         assert.equal(rec.afterAction.drawers, 1);

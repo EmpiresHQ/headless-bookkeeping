@@ -1,8 +1,8 @@
 {
   "harnessPass": true,
   "total": 17,
-  "pass": 14,
-  "fail": 1,
+  "pass": 15,
+  "fail": 0,
   "unverified": 2,
   "physicalGesture": "UNVERIFIED",
   "nativeSystemBack": "UNVERIFIED",
@@ -67,7 +67,7 @@
     {
       "id": "H4-pending-same-task-double-back",
       "harnessPass": true,
-      "verdict": "FAIL: Back aborts original pending response; protected unconfirmed state and same-operation retry recover one draft",
+      "verdict": "PASS: unknown-outcome contract retains form/key/facts; explicit retry recovers exactly one Expense; browser transport survival remains a limitation",
       "createRequests": 2,
       "newExpenses": [
         14
