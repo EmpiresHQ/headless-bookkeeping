@@ -1,3 +1,4 @@
+import { InboxBulkArchive, useInboxBulkArchive } from './InboxBulkArchive';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { ActiveFilters } from '../books/chips';
@@ -63,7 +64,9 @@ function QueueRow({
   entry,
   facts,
   run,
+  bulk,
 }: {
+  bulk: ReturnType<typeof useInboxBulkArchive>;
   entry: InboxEntry;
   facts: Parameters<typeof approvalDisplay>[1];
   /** null: a search result — opened as a single item (issue #278). */
@@ -80,11 +83,23 @@ function QueueRow({
         state={origin}
         positionRow
         leading={
-          <DocThumbLightbox
-            id={entry.item.id}
-            className="h-[34px] w-[34px] rounded-[10px] border border-line"
-            fallback={<ReasonGlyph entry={entry} />}
-          />
+          <div className="flex items-center gap-1">
+            <label className="relative z-10 flex min-h-11 min-w-8 cursor-pointer items-center justify-center">
+              <input
+                type="checkbox"
+                aria-label={`Select ${entry.item.filename}`}
+                className="size-5 accent-accent"
+                checked={bulk.isSelected(entry.item.id)}
+                disabled={bulk.busy}
+                onChange={() => bulk.toggle(entry.item.id)}
+              />
+            </label>
+            <DocThumbLightbox
+              id={entry.item.id}
+              className="h-[34px] w-[34px] rounded-[10px] border border-line"
+              fallback={<ReasonGlyph entry={entry} />}
+            />
+          </div>
         }
         title={entry.item.filename}
         subtitle={triageSubtitle(entry.item)}
@@ -201,6 +216,7 @@ export function InboxScreen() {
     seg,
     { poll: true },
   );
+  const bulk = useInboxBulkArchive(triageQ.data ?? []);
   const hero = useInboxHero();
   // Back from an opened item lands on its row again (issue #355): once
   // BOTH queue lists are loaded. While either has failed (LoadError above
@@ -350,6 +366,12 @@ export function InboxScreen() {
           searchingIn={needle === null ? null : segmentLabel(seg)}
         />
       )}
+      <InboxBulkArchive
+        bulk={bulk}
+        visible={shown.flatMap((entry) =>
+          entry.kind === 'triage' ? [entry.item] : [],
+        )}
+      />
       {isPending && <SkeletonRows count={4} />}
       {listError != null && (
         <LoadError
@@ -395,14 +417,26 @@ export function InboxScreen() {
       {earlier.length > 0 && (
         <ListGroup label={`Earlier · ${earlier.length}`}>
           {earlier.map((e) => (
-            <QueueRow key={e.route} entry={e} facts={facts} run={rowRun} />
+            <QueueRow
+              key={e.route}
+              entry={e}
+              facts={facts}
+              run={rowRun}
+              bulk={bulk}
+            />
           ))}
         </ListGroup>
       )}
       {today.length > 0 && (
         <ListGroup label={`Today · ${today.length}`}>
           {today.map((e) => (
-            <QueueRow key={e.route} entry={e} facts={facts} run={rowRun} />
+            <QueueRow
+              key={e.route}
+              entry={e}
+              facts={facts}
+              run={rowRun}
+              bulk={bulk}
+            />
           ))}
         </ListGroup>
       )}
