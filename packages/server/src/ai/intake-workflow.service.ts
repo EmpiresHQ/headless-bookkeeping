@@ -150,6 +150,8 @@ export function pass2FailureReason(
   cause?: 'purchase-total',
 ): string {
   switch (category) {
+    case 'timeout':
+      return detail;
     case 'model-refusal':
       // Plain-language, actionable (issue #406): a refusal is a classified
       // outcome — the operator retries once (Retry AI) or archives the file —

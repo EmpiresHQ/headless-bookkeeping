@@ -522,11 +522,98 @@ describe('Pass2 model refusal and the application-owned relevance gate', () => {
     service = new Pass2AgentService(factory as unknown as MastraService);
   });
 
+  afterEach(() => jest.restoreAllMocks());
+
+  it.each(['extraction', 'classification'])(
+    'reports a %s timeout even when Mastra returns tripwire and a valid-looking object',
+    async (stage) => {
+      const aborted = AbortSignal.abort(
+        new DOMException('Timed out', 'TimeoutError'),
+      );
+      const live = new AbortController().signal;
+      let call = 0;
+      jest.spyOn(AbortSignal, 'timeout').mockImplementation(() => {
+        call++;
+        return call === (stage === 'extraction' ? 2 : 3) ? aborted : live;
+      });
+      const generate = stage === 'extraction' ? extract : classify;
+      generate.mockResolvedValue({
+        finishReason: 'tripwire',
+        tripwire: { reason: 'Processor tripwire triggered' },
+        object: stage === 'extraction' ? evidence : classification,
+      });
+      expect(await service.classify('invoice')).toMatchObject({
+        ok: false,
+        category: 'timeout',
+      });
+      expect(generate).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(['extraction', 'classification'])(
+    'reports a thrown %s timeout without retrying a ten-minute request',
+    async (stage) => {
+      const aborted = AbortSignal.abort(
+        new DOMException('Timed out', 'TimeoutError'),
+      );
+      let call = 0;
+      jest
+        .spyOn(AbortSignal, 'timeout')
+        .mockImplementation(() =>
+          ++call === (stage === 'extraction' ? 2 : 3)
+            ? aborted
+            : new AbortController().signal,
+        );
+      const generate = stage === 'extraction' ? extract : classify;
+      generate.mockRejectedValue(aborted.reason);
+      expect(await service.classify('invoice')).toMatchObject({
+        ok: false,
+        category: 'timeout',
+      });
+      expect(generate).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('ignores a tripwire gate even when its residual object rejects the document', async () => {
+    relevance.mockResolvedValue({
+      finishReason: 'tripwire',
+      object: { kind: 'not_a_document' },
+    });
+    expect(await service.classify('invoice')).toMatchObject({
+      ok: true,
+      result: { kind: 'new_expense' },
+    });
+    expect(extract).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not describe a structured-output processor failure as a model refusal', async () => {
+    extract.mockResolvedValue({
+      finishReason: 'tripwire',
+      tripwire: { reason: 'Structured output validation failed' },
+      object: evidence,
+    });
+    expect(await service.classify('invoice')).toMatchObject({
+      ok: false,
+      category: 'transient',
+      detail: expect.stringContaining('Structured output validation failed'),
+    });
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('allows ten minutes in all three generation phases', async () => {
+    const timeout = jest.spyOn(AbortSignal, 'timeout');
+    expect(await service.classify('invoice')).toMatchObject({ ok: true });
+    expect(timeout.mock.calls).toEqual([[600_000], [600_000], [600_000]]);
+  });
+
   it('a validated gate rejection skips enrichment entirely: a privacy-policy PDF never reaches a refusing enrichment model', async () => {
     relevance.mockResolvedValue({ object: { kind: 'not_a_document' } });
     // The enrichment model WOULD refuse this file (issue #406 production
     // documents 272/273) — the gate rejection must route around it.
-    extract.mockResolvedValue({ finishReason: 'tripwire', object: undefined });
+    extract.mockResolvedValue({
+      finishReason: 'content-filter',
+      object: undefined,
+    });
     const outcome = await service.classify('Privacy policy PDF text');
     expect(outcome).toMatchObject({
       ok: true,
@@ -544,7 +631,10 @@ describe('Pass2 model refusal and the application-owned relevance gate', () => {
   });
 
   it('a refusal on a gate-accepted document is a typed, plain-language outcome — never evidence validation detail — and is not retried internally', async () => {
-    extract.mockResolvedValue({ finishReason: 'tripwire', object: undefined });
+    extract.mockResolvedValue({
+      finishReason: 'content-filter',
+      object: undefined,
+    });
     const outcome = await service.classify(
       'A genuine business invoice which the model declines to read',
     );
@@ -564,7 +654,7 @@ describe('Pass2 model refusal and the application-owned relevance gate', () => {
     expect(lookup).not.toHaveBeenCalled();
   });
 
-  it('recognizes the provider content-filter refusal shape like the Mastra tripwire shape', async () => {
+  it('recognizes the provider content-filter refusal shape as a model refusal', async () => {
     extract.mockResolvedValue({
       finishReason: 'content-filter',
       object: undefined,
@@ -577,7 +667,10 @@ describe('Pass2 model refusal and the application-owned relevance gate', () => {
   });
 
   it('a refusal in the final classification phase is typed as model-refusal too, distinct from invalid-output', async () => {
-    classify.mockResolvedValue({ finishReason: 'tripwire', object: undefined });
+    classify.mockResolvedValue({
+      finishReason: 'content-filter',
+      object: undefined,
+    });
     const outcome = await service.classify('A genuine business invoice');
     expect(outcome).toMatchObject({ ok: false, category: 'model-refusal' });
     if (!outcome.ok) expect(outcome.detail).toContain('declined to read');
@@ -589,10 +682,13 @@ describe('Pass2 model refusal and the application-owned relevance gate', () => {
     // The gate itself refuses: fall through to the ordinary pipeline, where
     // the enrichment refusal is reported as the typed model-refusal outcome.
     relevance.mockResolvedValue({
-      finishReason: 'tripwire',
+      finishReason: 'content-filter',
       object: undefined,
     });
-    extract.mockResolvedValue({ finishReason: 'tripwire', object: undefined });
+    extract.mockResolvedValue({
+      finishReason: 'content-filter',
+      object: undefined,
+    });
     expect(await service.classify('Terms of sale PDF text')).toMatchObject({
       ok: false,
       category: 'model-refusal',
@@ -652,8 +748,11 @@ describe('Pass2 model refusal and the application-owned relevance gate', () => {
     // Root-review regressions: a recognized refusal is checked FIRST — a
     // refused generation must never become accepted evidence/proposal, and
     // must not be flattened into a provider error or retried.
-    // (a) tripwire + valid evidence object → refusal, not accepted evidence.
-    extract.mockResolvedValue({ finishReason: 'tripwire', object: evidence });
+    // (a) content-filter + valid evidence object → refusal, not accepted evidence.
+    extract.mockResolvedValue({
+      finishReason: 'content-filter',
+      object: evidence,
+    });
     expect(await service.classify('invoice')).toMatchObject({
       ok: false,
       category: 'model-refusal',
@@ -677,7 +776,7 @@ describe('Pass2 model refusal and the application-owned relevance gate', () => {
     // (c) tripwire + embedded provider error → classified refusal, never
     // enrichment-failed, never retried.
     extract.mockResolvedValue({
-      finishReason: 'tripwire',
+      finishReason: 'content-filter',
       object: undefined,
       error: new Error('provider timeout'),
     });
@@ -690,7 +789,7 @@ describe('Pass2 model refusal and the application-owned relevance gate', () => {
 
   it('a refused gate answer with a residual not_a_document object is never trusted as a rejection', async () => {
     relevance.mockResolvedValue({
-      finishReason: 'tripwire',
+      finishReason: 'content-filter',
       object: { kind: 'not_a_document' },
     });
     extract.mockResolvedValue({ object: evidence });

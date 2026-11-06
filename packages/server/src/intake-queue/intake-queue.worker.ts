@@ -1,3 +1,4 @@
+import { INTAKE_STALE_SECONDS } from '../ai/generation-limits';
 import {
   Injectable,
   Logger,
@@ -12,7 +13,7 @@ import { IntakeWorkflowService } from '../ai/intake-workflow.service';
 export const POLL_INTERVAL_MS = 1500;
 /** A document in flight longer than this (seconds) is assumed crash-stranded
  *  and may be reclaimed. */
-export const STALE_SECONDS = 300;
+export const STALE_SECONDS = INTAKE_STALE_SECONDS;
 /** Give up auto-processing a document after this many failed claims so a
  *  poison document cannot block the queue. */
 export const MAX_ATTEMPTS = 3;

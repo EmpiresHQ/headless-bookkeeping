@@ -1,3 +1,8 @@
+import {
+  AI_REQUEST_TIMEOUT_MS,
+  CLASSIFICATION_MAX_ATTEMPTS,
+  EVIDENCE_MAX_ATTEMPTS,
+} from './generation-limits';
 import { normalizeIdentifier } from '../entities/identifier-normalization';
 import { withCanonicalLabelValueView } from '../intake/label-value-view';
 import {
@@ -32,22 +37,33 @@ function gateRejectedResult(): TriageResult {
   });
 }
 
-const MAX_RETRIES = 3;
-const ENRICHMENT_MAX_ATTEMPTS = 2;
-
-/**
- * Finish reasons that mean the model REFUSED to process the input — a
- * model-level event, not an intake fault (issue #406). `tripwire` is the
- * @mastra/core TripWire shape (any processor may abort processing with it);
- * `content-filter` is the AI SDK provider refusal shape. Any other value is
- * an ordinary generation outcome and flows through the existing validation.
- */
-const REFUSAL_FINISH_REASONS = new Set(['tripwire', 'content-filter']);
-
 function isModelRefusal(finishReason: unknown): boolean {
-  return (
-    typeof finishReason === 'string' && REFUSAL_FINISH_REASONS.has(finishReason)
-  );
+  // Mastra tripwire is a processor abort, including timeouts and invalid JSON.
+  // Only the provider's explicit content filter is evidence of refusal.
+  return finishReason === 'content-filter';
+}
+
+function timeoutFailure(): Pass2Failure {
+  return {
+    ok: false,
+    category: 'timeout',
+    detail:
+      'The AI did not finish within 10 minutes. Retry AI classification when the model server is less busy.',
+  };
+}
+
+function processorFailure(response: {
+  finishReason?: unknown;
+  tripwire?: { reason?: string };
+}): Pass2Failure | undefined {
+  if (response.finishReason !== 'tripwire') return undefined;
+  return {
+    ok: false,
+    category: 'transient',
+    detail:
+      'AI processing stopped: ' +
+      (response.tripwire?.reason ?? 'Processor tripwire triggered'),
+  };
 }
 
 /**
@@ -102,7 +118,8 @@ export type Pass2FailureCategory =
   | 'model-refusal'
   | 'context-failed'
   | 'invalid-output'
-  | 'transient';
+  | 'transient'
+  | 'timeout';
 
 /** A successfully validated Pass-2 classification. */
 export interface Pass2Success {
@@ -194,16 +211,20 @@ export class Pass2AgentService {
       category: 'evidence-invalid',
       detail: 'No evidence',
     };
-    for (let attempt = 0; attempt < ENRICHMENT_MAX_ATTEMPTS; attempt++) {
+    for (let attempt = 0; attempt < EVIDENCE_MAX_ATTEMPTS; attempt++) {
+      const signal = AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS);
       try {
         const response = await extractionAgent.generate(
           JSON.stringify({ document: documentText }),
           {
             structuredOutput: { schema: triageEvidenceSchema },
             modelSettings: { temperature: 0, maxOutputTokens: 4096 },
-            abortSignal: AbortSignal.timeout(180_000),
+            abortSignal: signal,
           },
         );
+        if (signal.aborted) return timeoutFailure();
+        const stopped = processorFailure(response);
+        if (stopped) return stopped;
         // A recognized refusal takes PRECEDENCE over parsing and error
         // handling (issue #406): a refused generation must never become
         // accepted evidence, and must not be flattened into a provider
@@ -231,6 +252,7 @@ export class Pass2AgentService {
           detail: `Invalid extracted evidence (finishReason=${response.finishReason ?? 'unknown'}): ${parsed.error.message}`,
         };
       } catch (error) {
+        if (signal.aborted) return timeoutFailure();
         evidenceFailure = {
           ok: false,
           category: 'enrichment-failed',
@@ -285,16 +307,20 @@ export class Pass2AgentService {
       category: 'invalid-output',
       detail: 'No classification',
     };
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    for (let attempt = 0; attempt < CLASSIFICATION_MAX_ATTEMPTS; attempt++) {
+      const signal = AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS);
       try {
         const response = await agent.generate(
           classificationPrompt(documentText, evidence, context),
           {
             structuredOutput: { schema: triageResultSchema },
             modelSettings: { temperature: 0, maxOutputTokens: 4096 },
-            abortSignal: AbortSignal.timeout(180_000),
+            abortSignal: signal,
           },
         );
+        if (signal.aborted) return timeoutFailure();
+        const stopped = processorFailure(response);
+        if (stopped) return stopped;
         // Same precedence as extraction: a refusal in the final phase is a
         // typed, plain-language outcome before any schema/throw handling —
         // a refused final response must never become an accepted proposal
@@ -429,6 +455,7 @@ export class Pass2AgentService {
         }
         return { ok: true, result, enrichment };
       } catch (error) {
+        if (signal.aborted) return timeoutFailure();
         failure = {
           ok: false,
           category: 'transient',
@@ -456,15 +483,21 @@ export class Pass2AgentService {
     try {
       const agent =
         await this.mastraService.buildTriageRelevanceAgent(orgIdentityContext);
+      const signal = AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS);
       const response = await agent.generate(markdown, {
         structuredOutput: { schema: triageRelevanceSchema },
         modelSettings: { temperature: 0, maxOutputTokens: 512 },
-        abortSignal: AbortSignal.timeout(60_000),
+        abortSignal: signal,
       });
       // A refused gate is never trusted — even a residual object that looks
       // like a rejection must not become the gate's decision (issue #406
       // root review): fall through to the full pipeline.
-      if (isModelRefusal(response.finishReason)) return 'proceed';
+      if (
+        signal.aborted ||
+        processorFailure(response) ||
+        isModelRefusal(response.finishReason)
+      )
+        return 'proceed';
       if (response.error) return 'proceed';
       const parsed = triageRelevanceSchema.safeParse(response.object);
       if (parsed.success && parsed.data.kind === 'not_a_document') {
