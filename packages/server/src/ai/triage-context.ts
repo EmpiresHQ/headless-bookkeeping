@@ -346,7 +346,7 @@ export const CLASSIFICATION_CONTEXT_CONTRACT =
   'Use the final invoice number, not its referenced order number. A payment/advance line does not make a final invoice a proforma or correction. Preserve document VAT markings; do not infer VAT from category history. ' +
   'If the supplier country is unknown, omit supplier_proposal; never guess it to satisfy create_country. ' +
   'For unmatched suppliers, create_registration_key and create_country must agree with extractedEvidence.evidence. ' +
-  'For not_a_document use category="", zero amounts, and omit both supplier_proposal and customer_proposal. Never infer payment merely from a printed total.';
+  'For not_a_document use category="", zero amounts, tax_point_date="" when no accounting date applies, and omit both supplier_proposal and customer_proposal. Never infer payment merely from a printed total.';
 
 /**
  * The application-owned RELEVANCE GATE schema (issue #406): one enum value

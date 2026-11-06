@@ -1,4 +1,8 @@
 import {
+  classificationOutputSchema,
+  parseClassificationOutput,
+} from './classification-output';
+import {
   AI_REQUEST_TIMEOUT_MS,
   CLASSIFICATION_MAX_ATTEMPTS,
   EVIDENCE_MAX_ATTEMPTS,
@@ -313,7 +317,7 @@ export class Pass2AgentService {
         const response = await agent.generate(
           classificationPrompt(documentText, evidence, context),
           {
-            structuredOutput: { schema: triageResultSchema },
+            structuredOutput: { schema: classificationOutputSchema },
             modelSettings: { temperature: 0, maxOutputTokens: 4096 },
             abortSignal: signal,
           },
@@ -336,7 +340,7 @@ export class Pass2AgentService {
           };
         }
         if (response.error) throw response.error;
-        const parsed = triageResultSchema.safeParse(response.object);
+        const parsed = parseClassificationOutput(response.object);
         if (!parsed.success) {
           // Issue #405, model-validation seam: EXACTLY a failed purchase
           // total — an explicit attempted purchase (invoice/receipt) whose

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { MastraService } from './mastra.service';
 import { Pass2AgentService } from './pass2-agent.service';
 import { triageEvidenceSchema } from './triage-context';
@@ -53,6 +54,71 @@ describe('failed purchase amount evidence (issue #405)', () => {
     });
     service = new Pass2AgentService(factory as unknown as MastraService);
   });
+
+  it('accepts the document 305 non-accounting response at BOTH SDK and application validation boundaries', async () => {
+    const raw = {
+      kind: 'not_a_document',
+      document_type: 'other',
+      gross_amount: 0,
+      vat_amount: 0,
+      currency: 'EUR',
+      tax_point_date: null,
+      category: '',
+      document_vat_marking: 'not_a_document',
+      supplier_invoice_number: null,
+      confidence: 0,
+      supplier_proposal: null,
+      customer_proposal: null,
+    };
+    classify.mockImplementation(
+      async (
+        _prompt: string,
+        options: { structuredOutput: { schema: z.ZodType } },
+      ) => ({
+        // Mastra validates here BEFORE Pass2 can normalize the output.
+        object: options.structuredOutput.schema.parse(raw),
+      }),
+    );
+    const outcome = await service.classify(
+      'Informational Bolt summary, not a tax invoice',
+    );
+    expect(outcome).toMatchObject({
+      ok: true,
+      result: {
+        kind: 'not_a_document',
+        tax_point_date: '',
+        gross_amount: 0,
+        vat_amount: 0,
+      },
+    });
+    if (outcome.ok) {
+      expect(outcome.result.supplier_proposal).toBeUndefined();
+      expect(outcome.result.customer_proposal).toBeUndefined();
+    }
+    expect(classify).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['new_expense', 'new_sales_invoice'])(
+    'never accepts a null tax date for %s',
+    async (kind) => {
+      classify.mockImplementation(
+        async (
+          _prompt: string,
+          options: { structuredOutput: { schema: z.ZodType } },
+        ) => ({
+          object: options.structuredOutput.schema.parse({
+            ...classification,
+            kind,
+            tax_point_date: null,
+          }),
+        }),
+      );
+      expect(
+        await service.classify('Invoice with unreadable date'),
+      ).toMatchObject({ ok: false });
+      expect(classify).toHaveBeenCalledTimes(3);
+    },
+  );
 
   it.each([undefined, null, ''])(
     'classifies a missing/empty model purchase total (%p) as evidence-invalid, not invalid-output',
