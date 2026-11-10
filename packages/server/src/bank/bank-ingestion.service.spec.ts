@@ -4,9 +4,16 @@ import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { BankImportJobRepository } from './bank-import-job.repository';
+import { BankMappingProfileRepository } from './bank-mapping-profile.repository';
 import { BankIngestionService } from './bank-ingestion.service';
 import type { CreateStatementInput } from './bank-statement.types';
-import { sourceFingerprint } from './apply-rules';
+import type { MappingRuleset } from './bank-mapping.types';
+import {
+  applyRules,
+  headerColumns,
+  headerSignature,
+  sourceFingerprint,
+} from './apply-rules';
 import type { BankStatementService } from './bank-statement.service';
 import type { MastraService } from '../ai/mastra.service';
 import type { DocumentStorageService } from '../documents/document-storage.service';
@@ -19,6 +26,7 @@ async function flush(): Promise<void> {
 describe('BankIngestionService (integration)', () => {
   let db: Kysely<Database>;
   let jobs: BankImportJobRepository;
+  let profiles: BankMappingProfileRepository;
   let createStatement: jest.Mock;
   let statements: BankStatementService;
   let mastra: MastraService;
@@ -32,6 +40,42 @@ describe('BankIngestionService (integration)', () => {
     end_date: '2026-01-31',
     transactions: [],
   };
+
+  // A real, valid mapping for the legacy tests' synthetic CSV texts.
+  function workflowResultFor(csvText: string) {
+    const headers = headerColumns(csvText);
+    const first = headers[0] ?? 'csv-text';
+    const amountColumn = headers[1] ?? first;
+    const ruleset: MappingRuleset = {
+      account_code: 'BANK_EUR',
+      date_column: first,
+      date_format: 'YYYY-MM-DD',
+      amount: { mode: 'signed', column: amountColumn },
+      currency_column: null,
+      default_currency: 'EUR',
+      description_column: null,
+      counterparty_iban_column: null,
+      counterparty_descriptor_column: null,
+      reference_column: null,
+    };
+    return { ruleset, input: forcedInput };
+  }
+
+  function mockWorkflow() {
+    return jest
+      .spyOn(service, 'runWorkflow')
+      .mockImplementation((csvText) =>
+        Promise.resolve(workflowResultFor(csvText)),
+      );
+  }
+
+  async function settle(jobId: number): Promise<void> {
+    for (let i = 0; i < 20; i++) {
+      const job = await jobs.get(jobId);
+      if (job?.status !== 'running') return;
+      await flush();
+    }
+  }
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -48,6 +92,7 @@ describe('BankIngestionService (integration)', () => {
       throw error instanceof Error ? error : new Error('Migration failed');
 
     jobs = new BankImportJobRepository(db);
+    profiles = new BankMappingProfileRepository(db);
 
     createStatement = jest.fn().mockResolvedValue({
       statement: { id: 99 },
@@ -85,7 +130,13 @@ describe('BankIngestionService (integration)', () => {
       },
     } as unknown as DocumentStorageService;
 
-    service = new BankIngestionService(mastra, statements, jobs, storage);
+    service = new BankIngestionService(
+      mastra,
+      statements,
+      jobs,
+      storage,
+      profiles,
+    );
   });
 
   afterEach(async () => {
@@ -93,7 +144,7 @@ describe('BankIngestionService (integration)', () => {
   });
 
   it('startImport returns a jobId and synchronously records a running job', async () => {
-    jest.spyOn(service, 'runWorkflow').mockResolvedValue(forcedInput);
+    mockWorkflow();
 
     const { jobId } = await service.startImport(
       {
@@ -110,7 +161,7 @@ describe('BankIngestionService (integration)', () => {
   });
 
   it('marks the job done, preserves the raw CSV durably and links it from the statement (issue #403)', async () => {
-    jest.spyOn(service, 'runWorkflow').mockResolvedValue(forcedInput);
+    mockWorkflow();
 
     const { jobId } = await service.startImport(
       {
@@ -121,12 +172,7 @@ describe('BankIngestionService (integration)', () => {
       'BANK_EUR',
     );
 
-    // Let the fire-and-forget background task settle.
-    for (let i = 0; i < 10; i++) {
-      const job = await jobs.get(jobId);
-      if (job?.status !== 'running') break;
-      await flush();
-    }
+    await settle(jobId);
 
     const job = await service.getImportStatus(jobId);
     expect(job?.status).toBe('done');
@@ -149,7 +195,7 @@ describe('BankIngestionService (integration)', () => {
   });
 
   it('archives its OWN byte-exact copy even for an already-durable intake upload (issue #403: the document’s lifetime must not govern the statement’s raw source)', async () => {
-    jest.spyOn(service, 'runWorkflow').mockResolvedValue(forcedInput);
+    mockWorkflow();
 
     // The upload arrived as an intake document whose bytes are already
     // stored — the import still archives its own bank-owned copy, so the
@@ -163,11 +209,7 @@ describe('BankIngestionService (integration)', () => {
       },
       'BANK_EUR',
     );
-    for (let i = 0; i < 10; i++) {
-      const job = await jobs.get(jobId);
-      if (job?.status !== 'running') break;
-      await flush();
-    }
+    await settle(jobId);
     expect(createStatement).toHaveBeenCalledWith({
       ...forcedInput,
       source_fingerprint: sourceFingerprint('csv-text'),
@@ -181,7 +223,7 @@ describe('BankIngestionService (integration)', () => {
   // ── Issue #399: authoritative raw-source replay identity ──────────
 
   it('gives two exports that MAP identically but differ in raw bytes DIFFERENT source fingerprints — never one silent replay (issue #399)', async () => {
-    jest.spyOn(service, 'runWorkflow').mockResolvedValue(forcedInput);
+    mockWorkflow();
 
     // Two INDEPENDENT exports of the same movements: same mapped rows, but
     // the raw sources differ in an unmapped memo value. They are different
@@ -200,14 +242,8 @@ describe('BankIngestionService (integration)', () => {
       { text: exportB, buffer: Buffer.from(exportB), filename: 'b.csv' },
       'BANK_EUR',
     );
-    for (let i = 0; i < 10; i++) {
-      if ((await jobs.get(jobA))?.status !== 'running') break;
-      await flush();
-    }
-    for (let i = 0; i < 10; i++) {
-      if ((await jobs.get(jobB))?.status !== 'running') break;
-      await flush();
-    }
+    await settle(jobA);
+    await settle(jobB);
 
     expect((await jobs.get(jobA))?.status).toBe('done');
     expect((await jobs.get(jobB))?.status).toBe('done');
@@ -225,7 +261,7 @@ describe('BankIngestionService (integration)', () => {
   });
 
   it('gives an EXACT re-upload (same bytes, renamed) the SAME fingerprint — a true replay (issue #399)', async () => {
-    jest.spyOn(service, 'runWorkflow').mockResolvedValue(forcedInput);
+    mockWorkflow();
     const exportA =
       'Date,Amount,Currency,Memo\n2026-01-05,-12.50,EUR,export A memo\n';
     const { jobId: jobA } = await service.startImport(
@@ -240,14 +276,8 @@ describe('BankIngestionService (integration)', () => {
       },
       'BANK_EUR',
     );
-    for (let i = 0; i < 10; i++) {
-      if ((await jobs.get(jobA))?.status !== 'running') break;
-      await flush();
-    }
-    for (let i = 0; i < 10; i++) {
-      if ((await jobs.get(jobB))?.status !== 'running') break;
-      await flush();
-    }
+    await settle(jobA);
+    await settle(jobB);
     const calls = createStatement.mock.calls.map((c) => c[0]);
     expect(calls).toHaveLength(2);
     expect(calls[0].source_fingerprint).toBe(sourceFingerprint(exportA));
@@ -266,15 +296,181 @@ describe('BankIngestionService (integration)', () => {
       'BANK_EUR',
     );
 
-    for (let i = 0; i < 10; i++) {
-      const job = await jobs.get(jobId);
-      if (job?.status !== 'running') break;
-      await flush();
-    }
+    await settle(jobId);
 
     const job = await service.getImportStatus(jobId);
     expect(job?.status).toBe('failed');
     expect(job?.error).toBe('boom');
     expect(createStatement).not.toHaveBeenCalled();
+  });
+
+  // ── Bank mapping profile: reuse a successful mapping, never cache a failure ──
+
+  const mappingCsv =
+    'Date,Amount,D/C,Currency,Explanation\n' +
+    '2026-10-01,27.59,D,EUR,Invoice 1000\n' +
+    '2026-10-02,6157.00,C,EUR,Payment received\n';
+
+  const mappingRuleset: MappingRuleset = {
+    account_code: 'BANK_EUR',
+    date_column: 'Date',
+    date_format: 'YYYY-MM-DD',
+    amount: {
+      mode: 'debit_credit',
+      amount_column: 'Amount',
+      indicator_column: 'D/C',
+      debit_value: 'D',
+    },
+    currency_column: 'Currency',
+    default_currency: 'EUR',
+    description_column: 'Explanation',
+    counterparty_iban_column: null,
+    counterparty_descriptor_column: null,
+    reference_column: null,
+  };
+
+  async function importCsv(csvText: string): Promise<number> {
+    const { jobId } = await service.startImport(
+      { text: csvText, buffer: Buffer.from(csvText), filename: 'oct.csv' },
+      'BANK_EUR',
+    );
+    await settle(jobId);
+    return jobId;
+  }
+
+  it('first import (no profile) infers with the LLM and saves the profile after success', async () => {
+    const runWorkflow = jest
+      .spyOn(service, 'runWorkflow')
+      .mockImplementation((csvText) =>
+        Promise.resolve({
+          ruleset: mappingRuleset,
+          input: applyRules(mappingRuleset, csvText),
+        }),
+      );
+
+    const jobId = await importCsv(mappingCsv);
+
+    expect(runWorkflow).toHaveBeenCalledTimes(1);
+    expect((await jobs.get(jobId))?.status).toBe('done');
+    const stored = await profiles.findProfile(
+      'BANK_EUR',
+      headerSignature(mappingCsv),
+    );
+    expect(stored?.ruleset).toEqual(mappingRuleset);
+    expect(stored?.source_job_id).toBe(jobId);
+    expect(stored?.header_json).toBe(
+      JSON.stringify(['Date', 'Amount', 'D/C', 'Currency', 'Explanation']),
+    );
+    expect((await jobs.get(jobId))?.summary?.mappingSource).toBe('inferred');
+  });
+
+  it('a repeat import with the same header reuses the profile — the LLM is NOT called and the profile is touched', async () => {
+    const runWorkflow = jest
+      .spyOn(service, 'runWorkflow')
+      .mockImplementation((csvText) =>
+        Promise.resolve({
+          ruleset: mappingRuleset,
+          input: applyRules(mappingRuleset, csvText),
+        }),
+      );
+    const firstJob = await importCsv(mappingCsv);
+    expect(runWorkflow).toHaveBeenCalledTimes(1);
+    const stored = await profiles.findProfile(
+      'BANK_EUR',
+      headerSignature(mappingCsv),
+    );
+    expect(stored).not.toBeNull();
+    const touch = jest.spyOn(profiles, 'touch');
+
+    runWorkflow.mockClear();
+    // Same export format, different statement rows.
+    const nextMonth =
+      'Date,Amount,D/C,Currency,Explanation\n' +
+      '2026-11-01,10.00,D,EUR,November invoice\n';
+    const secondJob = await importCsv(nextMonth);
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    expect(touch).toHaveBeenCalledWith(stored!.id);
+    expect((await jobs.get(secondJob))?.status).toBe('done');
+    expect((await jobs.get(secondJob))?.summary?.mappingSource).toBe('profile');
+    // The first import's profile is still the only one for this format.
+    expect(await profiles.list('BANK_EUR')).toHaveLength(1);
+    expect((await jobs.get(firstJob))?.status).toBe('done');
+  });
+
+  it('does NOT save a profile when the inferred ruleset fails validation', async () => {
+    // The production incident's shape: fx_rate pointed at the D/C column.
+    const badRuleset: MappingRuleset = {
+      ...mappingRuleset,
+      fx_rate: { column: 'D/C' },
+    };
+    const runWorkflow = jest.spyOn(service, 'runWorkflow').mockResolvedValue({
+      ruleset: badRuleset,
+      input: forcedInput,
+    });
+
+    const jobId = await importCsv(mappingCsv);
+
+    expect(runWorkflow).toHaveBeenCalledTimes(1);
+    const job = await jobs.get(jobId);
+    expect(job?.status).toBe('failed');
+    expect(job?.error).toMatch(/bank_mapping ruleset rejected: fx_rate/);
+    expect(createStatement).not.toHaveBeenCalled();
+    expect(await profiles.list('BANK_EUR')).toHaveLength(0);
+  });
+
+  it('does NOT save a profile when createStatement fails', async () => {
+    jest.spyOn(service, 'runWorkflow').mockImplementation((csvText) =>
+      Promise.resolve({
+        ruleset: mappingRuleset,
+        input: applyRules(mappingRuleset, csvText),
+      }),
+    );
+    createStatement.mockRejectedValueOnce(new Error('statement insert failed'));
+
+    const jobId = await importCsv(mappingCsv);
+
+    const job = await jobs.get(jobId);
+    expect(job?.status).toBe('failed');
+    expect(job?.error).toBe('statement insert failed');
+    expect(await profiles.list('BANK_EUR')).toHaveLength(0);
+  });
+
+  it('does not fall back to the LLM when a stored profile fails to apply — the error names the profile', async () => {
+    // A stored profile that no longer fits its own format (reset needed).
+    await profiles.save({
+      accountCode: 'BANK_EUR',
+      headerHash: headerSignature(mappingCsv),
+      headerColumns: ['Date', 'Amount', 'D/C', 'Currency', 'Explanation'],
+      ruleset: { ...mappingRuleset, date_column: 'MissingDate' },
+      sourceJobId: 1,
+    });
+    const runWorkflow = jest.spyOn(service, 'runWorkflow');
+
+    const jobId = await importCsv(mappingCsv);
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    const job = await jobs.get(jobId);
+    expect(job?.status).toBe('failed');
+    expect(job?.error).toMatch(/^stored bank mapping profile failed: /);
+    expect(createStatement).not.toHaveBeenCalled();
+  });
+
+  it('a profile save failure does not fail an otherwise successful import', async () => {
+    jest.spyOn(service, 'runWorkflow').mockImplementation((csvText) =>
+      Promise.resolve({
+        ruleset: mappingRuleset,
+        input: applyRules(mappingRuleset, csvText),
+      }),
+    );
+    jest
+      .spyOn(profiles, 'save')
+      .mockRejectedValue(new Error('profile store unavailable'));
+
+    const jobId = await importCsv(mappingCsv);
+
+    const job = await jobs.get(jobId);
+    expect(job?.status).toBe('done');
+    expect(job?.error).toBeNull();
   });
 });
