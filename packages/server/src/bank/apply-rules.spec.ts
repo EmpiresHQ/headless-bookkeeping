@@ -304,6 +304,17 @@ describe('applyRules', () => {
     expect(sourceFingerprint(doubled)).not.toBe(sourceFingerprint(exportA));
   });
 
+  it('sourceFingerprint strips a leading UTF-8 BOM before parsing a quoted header', () => {
+    const plain = '"Date","Amount","Currency"\n"2026-10-01","-12.50","EUR"\n';
+    const bomString = String.fromCharCode(0xfeff) + plain;
+    const bomBuffer = Buffer.concat([
+      Buffer.from([0xef, 0xbb, 0xbf]),
+      Buffer.from(plain, 'utf8'),
+    ]);
+    expect(sourceFingerprint(bomString)).toBe(sourceFingerprint(plain));
+    expect(sourceFingerprint(bomBuffer)).toBe(sourceFingerprint(plain));
+  });
+
   it('sourceFingerprint retains duplicate-header values and raw cell whitespace', () => {
     const original = 'Date,Memo,Memo\n2026-06-01,first,second\n';
     expect(

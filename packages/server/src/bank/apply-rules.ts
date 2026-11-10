@@ -79,6 +79,15 @@ function sourceAccountCell(
   return v ? v.toUpperCase() : null;
 }
 
+const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
+
+function hasUtf8Bom(buf: Buffer): boolean {
+  return (
+    buf.length >= UTF8_BOM.length &&
+    buf.subarray(0, UTF8_BOM.length).equals(UTF8_BOM)
+  );
+}
+
 /**
  * The authoritative raw-source fingerprint (issue #399, carrying #403's
  * raw-byte contract): SHA-256 over the SORTED FULL raw row multiset — every
@@ -94,7 +103,11 @@ export function sourceFingerprint(source: string | Buffer): string {
   // unmapped columns differ only in non-UTF-8 bytes are DIFFERENT sources,
   // never an invented exact replay. Row order is normalised; byte content is
   // not: every byte of every cell participates.
-  const buf = typeof source === 'string' ? Buffer.from(source, 'utf8') : source;
+  const raw = typeof source === 'string' ? Buffer.from(source, 'utf8') : source;
+  // A leading UTF-8 BOM is an encoding marker, not content: strip it before
+  // the latin1 decode (where it would surface as "ï»¿" and break the header
+  // quote parse), so a BOM'd re-save fingerprints as the same source.
+  const buf = hasUtf8Bom(raw) ? raw.subarray(UTF8_BOM.length) : raw;
   const csvText = buf.toString('latin1');
   // Arrays retain every occurrence of duplicate headers. Object records
   // would discard earlier cells with the same name before we could hash them.
