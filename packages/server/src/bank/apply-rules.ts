@@ -89,6 +89,38 @@ function hasUtf8Bom(buf: Buffer): boolean {
 }
 
 /**
+ * The column names of a bank CSV's header record, in the source's ORIGINAL
+ * order, trimmed. A leading UTF-8 BOM is an encoding marker, not a column
+ * name, so it is stripped (and `bom: true` is left on as a second guard).
+ * Quoted and unquoted spellings of the same names are equal here: the CSV
+ * parser removes the quotes, so a quoted export and an unquoted one describe
+ * the same headers. Pure — no IO, no LLM.
+ */
+export function headerColumns(csvText: string): string[] {
+  const withoutBom = csvText.replace(/^\uFEFF/, '');
+  const [header = []] = parse(withoutBom, {
+    bom: true,
+    to_line: 1,
+    skip_empty_lines: true,
+  }) as string[][];
+  return header.map((name) => name.trim());
+}
+
+/**
+ * The stable identity of a bank export's FORMAT (issue: bank mapping profile):
+ * SHA-256 over the ordered, trimmed header names. Uploads from the same bank
+ * with the same export format share this signature, so the successful column
+ * mapping can be reused instead of asking the LLM again. Order participates
+ * (a reordered export is a different format); quoting and a leading BOM do
+ * not.
+ */
+export function headerSignature(csvText: string): string {
+  return createHash('sha256')
+    .update(JSON.stringify(headerColumns(csvText)))
+    .digest('hex');
+}
+
+/**
  * The authoritative raw-source fingerprint (issue #399, carrying #403's
  * raw-byte contract): SHA-256 over the SORTED FULL raw row multiset — every
  * column the source carried, mapped or NOT, byte-preserved. Order-
@@ -130,6 +162,140 @@ export function sourceFingerprint(source: string | Buffer): string {
       }),
     )
     .digest('hex');
+}
+
+/**
+ * Reject a ruleset that cannot possibly apply to this CSV, BEFORE it is
+ * applied. An LLM-inferred ruleset is unverified: it can name a column the
+ * export does not have, point a settlement-FX target at the debit/credit
+ * indicator (the production incident: `fx_rate` → `D`), or claim a rate where
+ * the sample rows hold text. Each failure names the offending column/value so
+ * the operator can see what to fix, and the caller never caches a ruleset that
+ * failed.
+ *
+ * Deterministic and pure (ADR-0031): the LLM never emits rows, and this
+ * validation never invents a value.
+ */
+export function validateRuleset(
+  ruleset: MappingRuleset,
+  csvText: string,
+): void {
+  const columns = new Set(headerColumns(csvText));
+  const rejected = (reason: string): never => {
+    throw new Error(`bank_mapping ruleset rejected: ${reason}`);
+  };
+
+  const references: { label: string; column: string }[] = [
+    { label: 'date_column', column: ruleset.date_column },
+  ];
+  if (ruleset.amount.mode === 'signed') {
+    references.push({
+      label: 'amount.column',
+      column: ruleset.amount.column,
+    });
+  } else {
+    references.push(
+      { label: 'amount.amount_column', column: ruleset.amount.amount_column },
+      {
+        label: 'amount.indicator_column',
+        column: ruleset.amount.indicator_column,
+      },
+    );
+  }
+  const optionalColumns: { label: string; column: string | null }[] = [
+    { label: 'currency_column', column: ruleset.currency_column },
+    { label: 'description_column', column: ruleset.description_column },
+    {
+      label: 'counterparty_iban_column',
+      column: ruleset.counterparty_iban_column,
+    },
+    {
+      label: 'counterparty_descriptor_column',
+      column: ruleset.counterparty_descriptor_column,
+    },
+    { label: 'reference_column', column: ruleset.reference_column },
+  ];
+  for (const { label, column } of optionalColumns) {
+    if (column !== null) references.push({ label, column });
+  }
+  const evidenceTargets: {
+    label: string;
+    target: { column: string } | null | undefined;
+  }[] = [
+    { label: 'source_account', target: ruleset.source_account },
+    { label: 'external_id', target: ruleset.external_id },
+    { label: 'archive_id', target: ruleset.archive_id },
+    { label: 'source_currency', target: ruleset.source_currency },
+    { label: 'source_amount', target: ruleset.source_amount },
+    { label: 'fx_rate', target: ruleset.fx_rate },
+    { label: 'conversion_fee', target: ruleset.conversion_fee },
+    { label: 'booking_date', target: ruleset.booking_date },
+    { label: 'bank_reference_rate', target: ruleset.bank_reference_rate },
+  ];
+  for (const { label, target } of evidenceTargets) {
+    if (target) references.push({ label, column: target.column });
+  }
+  for (const { label, column } of references) {
+    if (!columns.has(column)) {
+      rejected(
+        `${label} references column '${column}' not found in the header`,
+      );
+    }
+  }
+
+  // A settlement-FX target must not REUSE the amount's debit/credit indicator:
+  // that column holds a flag like "D"/"C", never a rate or an amount. This is
+  // the production incident's failure (fx_rate → indicator column).
+  if (ruleset.amount.mode === 'debit_credit') {
+    const indicator = ruleset.amount.indicator_column;
+    for (const label of [
+      'fx_rate',
+      'source_amount',
+      'conversion_fee',
+      'bank_reference_rate',
+    ] as const) {
+      const target = ruleset[label];
+      if (target && target.column === indicator) {
+        rejected(
+          `${label} maps to the amount indicator column '${indicator}', ` +
+            'which holds a debit/credit flag, not a numeric value',
+        );
+      }
+    }
+  }
+
+  // Sample the first rows: a rate target can name a real column and still hold
+  // text (a mis-mapped column). Only non-empty cells are checked — absent
+  // evidence stays absent, never zero.
+  const rows = parse(csvText, {
+    bom: true,
+    columns: true,
+    skip_empty_lines: true,
+    trim: true,
+  }) as Record<string, string>[];
+  for (const [index, row] of rows.slice(0, 5).entries()) {
+    for (const label of ['fx_rate', 'bank_reference_rate'] as const) {
+      const target = ruleset[label];
+      if (!target) continue;
+      let raw: string | null = null;
+      try {
+        raw = fxEvidenceCell(row, target);
+      } catch (e) {
+        rejected(
+          `${label} column '${target.column}' has an unusable extraction ` +
+            `pattern: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+      if (raw === null) continue;
+      const n = Number(raw.replace(/\s/g, '').replace(',', '.'));
+      if (!Number.isFinite(n) || n <= 0) {
+        rejected(
+          `${label} value "${raw}" from column '${target.column}' on sample ` +
+            `row ${index + 1} is not a positive number`,
+        );
+      }
+    }
+  }
 }
 
 /**

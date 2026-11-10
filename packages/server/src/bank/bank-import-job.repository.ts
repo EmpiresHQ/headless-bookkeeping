@@ -23,6 +23,8 @@ export interface BankImportJob {
       statement_id: number;
       source_row_number: number | null;
     }[];
+    /** How the import's column mapping was obtained (bank mapping profile). */
+    mappingSource?: 'profile' | 'inferred';
   } | null;
   created_at: number;
   updated_at: number;
@@ -70,6 +72,8 @@ export class BankImportJobRepository {
       knownCount: number;
       conflictCount: number;
       conflicts: unknown[];
+      /** How the import's column mapping was obtained. */
+      mappingSource?: 'profile' | 'inferred';
     },
   ): Promise<void> {
     const now = Math.floor(Date.now() / 1000);

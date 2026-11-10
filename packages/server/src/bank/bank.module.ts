@@ -2,9 +2,13 @@ import { Module, forwardRef } from '@nestjs/common';
 import { BankStatementService } from './bank-statement.service';
 import { BankTransactionRepository } from './bank-transaction.repository';
 import { BankImportJobRepository } from './bank-import-job.repository';
+import { BankMappingProfileRepository } from './bank-mapping-profile.repository';
 import { BankIngestionService } from './bank-ingestion.service';
 import { BankStatementController } from './bank-statement.controller';
-import { BankIngestionController } from './bank-ingestion.controller';
+import {
+  BankIngestionController,
+  BankMappingProfileController,
+} from './bank-ingestion.controller';
 import { AccountModule } from '../ledger/account/account.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { DocumentsModule } from '../documents/documents.module';
@@ -26,9 +30,14 @@ import { ReconciliationModule } from '../reconciliation/reconciliation.module';
     BankStatementService,
     BankTransactionRepository,
     BankImportJobRepository,
+    BankMappingProfileRepository,
     BankIngestionService,
   ],
-  controllers: [BankStatementController, BankIngestionController],
+  controllers: [
+    BankStatementController,
+    BankIngestionController,
+    BankMappingProfileController,
+  ],
   exports: [
     BankStatementService,
     BankTransactionRepository,

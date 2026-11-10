@@ -1,15 +1,37 @@
-import { Injectable, Inject, Optional, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  Optional,
+  Logger,
+  forwardRef,
+} from '@nestjs/common';
 import { MastraService } from '../ai/mastra.service';
 import { BankStatementService } from './bank-statement.service';
 import { BankImportJobRepository } from './bank-import-job.repository';
+import { BankMappingProfileRepository } from './bank-mapping-profile.repository';
 import { buildBankIngestionWorkflow } from './bank-ingestion.workflow';
-import { sourceFingerprint } from './apply-rules';
+import {
+  applyRules,
+  headerColumns,
+  headerSignature,
+  sourceFingerprint,
+  validateRuleset,
+} from './apply-rules';
+import type { MappingRuleset } from './bank-mapping.types';
 import { ReconciliationService } from '../reconciliation/reconciliation.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
 import type { CreateStatementInput } from './bank-statement.types';
 
+/** What the inference workflow returns: rules + the applied statement input. */
+export interface BankIngestionWorkflowResult {
+  ruleset: MappingRuleset;
+  input: CreateStatementInput;
+}
+
 @Injectable()
 export class BankIngestionService {
+  private readonly logger = new Logger(BankIngestionService.name);
+
   constructor(
     private readonly mastra: MastraService,
     private readonly statements: BankStatementService,
@@ -22,6 +44,9 @@ export class BankIngestionService {
     // from the imported statement's `file_path` — never merely held in
     // workflow memory or a parsed description.
     private readonly storage: DocumentStorageService,
+    // Successful mappings, keyed by (account, header signature): a repeat
+    // upload of the same bank's export format skips the LLM entirely.
+    private readonly profiles: BankMappingProfileRepository,
     // Optional so a bank-only test harness need not wire reconciliation; the
     // forwardRef breaks the Bank↔Reconciliation module cycle.
     @Optional()
@@ -29,11 +54,14 @@ export class BankIngestionService {
     private readonly reconciliation?: ReconciliationService,
   ) {}
 
-  /** Overridable seam: run the Mastra workflow and return the validated input. */
+  /**
+   * Overridable seam: run the Mastra workflow (infer → validate → apply) and
+   * return both the validated ruleset and the statement input it produced.
+   */
   async runWorkflow(
     csvText: string,
     accountHint: string,
-  ): Promise<CreateStatementInput> {
+  ): Promise<BankIngestionWorkflowResult> {
     // Build the agent on demand so the current settings-backed model + inference
     // endpoint apply to this import (no restart needed after changing Settings).
     const agent = await this.mastra.buildBankMappingAgent();
@@ -43,7 +71,7 @@ export class BankIngestionService {
     if (res.status !== 'success') {
       throw new Error(`Ingestion workflow failed: ${res.status}`);
     }
-    return res.result;
+    return res.result as BankIngestionWorkflowResult;
   }
 
   async startImport(
@@ -68,7 +96,44 @@ export class BankIngestionService {
     accountHint: string,
   ): Promise<void> {
     try {
-      const input = await this.runWorkflow(file.text, accountHint);
+      // The export-format identity. An existing profile means the same bank
+      // format already imported successfully: apply its ruleset directly, no
+      // LLM. Otherwise infer once, validate it, and only cache it after this
+      // import has actually created its statement.
+      const headerHash = headerSignature(file.text);
+      const stored = await this.profiles.findProfile(accountHint, headerHash);
+
+      let input: CreateStatementInput;
+      let inferredRuleset: MappingRuleset | null = null;
+      let profileId: number | null = null;
+      let mappingSource: 'profile' | 'inferred';
+
+      if (stored) {
+        mappingSource = 'profile';
+        profileId = stored.id;
+        try {
+          input = applyRules(stored.ruleset, file.text);
+        } catch (e) {
+          // Never silently fall back to the LLM: a broken stored profile is the
+          // cause, and the operator should reset it (DELETE the profile).
+          throw new Error(
+            `stored bank mapping profile failed: ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+            { cause: e },
+          );
+        }
+      } else {
+        mappingSource = 'inferred';
+        const inferred = await this.runWorkflow(file.text, accountHint);
+        // The workflow validates too; validating at this seam keeps an
+        // overridden/retried seam from handing an unchecked ruleset straight to
+        // the import.
+        validateRuleset(inferred.ruleset, file.text);
+        inferredRuleset = inferred.ruleset;
+        input = inferred.input;
+      }
+
       // The authoritative raw-source identity (issue #399): the fingerprint
       // over the ORIGINAL buffer's FULL raw rows — mapped columns or not,
       // byte-preserved (never the lossy UTF-8 re-decode of file.text). It
@@ -94,6 +159,18 @@ export class BankIngestionService {
         source_fingerprint: fingerprint,
         file_path: storagePath,
       });
+
+      // The import has succeeded (the statement exists), so this mapping is
+      // safe to reuse. Best-effort: a profile write must never fail an import.
+      await this.rememberMapping({
+        jobId,
+        accountCode: accountHint,
+        headerHash,
+        csvText: file.text,
+        inferredRuleset,
+        profileId,
+      });
+
       await this.jobs.markDone(jobId, statement.id, {
         newCount: summary.newCount,
         knownCount: summary.knownCount,
@@ -105,6 +182,7 @@ export class BankIngestionService {
           statement_id: c.statement_id,
           source_row_number: c.source_row_number,
         })),
+        mappingSource,
       });
 
       // Best-effort: auto-stage unambiguous high-confidence matches as drafts
@@ -119,6 +197,40 @@ export class BankIngestionService {
       await this.jobs.markFailed(
         jobId,
         e instanceof Error ? e.message : String(e),
+      );
+    }
+  }
+
+  /**
+   * Record the successful mapping. A newly inferred ruleset is saved for next
+   * time; a reused profile is touched. Best-effort by contract: an import that
+   * already created its statement must not fail because the cache write did.
+   */
+  private async rememberMapping(input: {
+    jobId: number;
+    accountCode: string;
+    headerHash: string;
+    csvText: string;
+    inferredRuleset: MappingRuleset | null;
+    profileId: number | null;
+  }): Promise<void> {
+    try {
+      if (input.inferredRuleset) {
+        await this.profiles.save({
+          accountCode: input.accountCode,
+          headerHash: input.headerHash,
+          headerColumns: headerColumns(input.csvText),
+          ruleset: input.inferredRuleset,
+          sourceJobId: input.jobId,
+        });
+      } else if (input.profileId !== null) {
+        await this.profiles.touch(input.profileId);
+      }
+    } catch (e) {
+      this.logger.warn(
+        `Could not persist bank mapping profile for import job ${input.jobId}: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
       );
     }
   }

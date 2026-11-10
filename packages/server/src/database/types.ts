@@ -26,6 +26,7 @@ export interface Database {
   bank_duplicate_repair: BankDuplicateRepairTable;
   bank_transaction_alias: BankTransactionAliasTable;
   bank_import_job: BankImportJobTable;
+  bank_mapping_profile: BankMappingProfileTable;
   reconciliation_match: ReconciliationMatchTable;
   approval: ApprovalTable;
   audit_finding: AuditFindingTable;
@@ -386,6 +387,23 @@ export interface BankImportJobTable {
   summary: string | null;
   created_at: number;
   updated_at: number;
+}
+
+// BankMappingProfile: a successful column mapping for one bank account and
+// export format, reusable on repeat imports without an LLM call.
+export interface BankMappingProfileTable {
+  id: Generated<number>;
+  account_code: string;
+  // SHA-256 over the ordered, trimmed header names (see headerSignature).
+  header_hash: string;
+  // The header names as JSON, for humans/debugging.
+  header_json: string;
+  // The validated applyRules ruleset as JSON.
+  ruleset_json: string;
+  // The import job that produced the profile; NULL for an operator seed.
+  source_job_id: number | null;
+  created_at: number;
+  last_used_at: number;
 }
 
 // Bank transaction: a single line from a bank statement. Amount is signed
