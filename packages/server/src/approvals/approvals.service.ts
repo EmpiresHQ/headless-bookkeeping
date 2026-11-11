@@ -345,9 +345,16 @@ export class ApprovalsService {
     }
 
     // Rejecting a reconciliation match discards the draft link (ledger-neutral)
-    // instead of returning a business object to draft.
+    // instead of returning a business object to draft. A match that is already
+    // gone (removed before its approval was resolved) has nothing left to
+    // discard — the rejection must still go through, or the approval can
+    // never leave the pending inbox.
     if (approval.object_type === 'reconciliation_match') {
-      await this.reconciliationService.discardDraftMatch(approval.object_id);
+      try {
+        await this.reconciliationService.discardDraftMatch(approval.object_id);
+      } catch (err) {
+        if (!(err instanceof NotFoundException)) throw err;
+      }
       const now = Math.floor(Date.now() / 1000);
       await this.db
         .updateTable('approval')

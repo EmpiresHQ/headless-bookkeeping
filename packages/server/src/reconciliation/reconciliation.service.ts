@@ -1480,6 +1480,20 @@ export class ReconciliationService {
             `Reconciliation match ${matchId} was already removed`,
           );
         }
+        // A draft match is staged behind a pending approval. Removing the
+        // match must resolve that approval too, or it points at a row that no
+        // longer exists and stays in the pending inbox forever.
+        await trx
+          .updateTable('approval')
+          .set({
+            status: 'rejected',
+            rejected_reason: `Reconciliation match ${matchId} was unmatched`,
+            resolved_at: Math.floor(Date.now() / 1000),
+          })
+          .where('object_type', '=', 'reconciliation_match')
+          .where('object_id', '=', matchId)
+          .where('status', '=', 'pending')
+          .execute();
       },
     });
 
