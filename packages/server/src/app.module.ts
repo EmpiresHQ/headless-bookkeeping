@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { LoggerModule } from 'nestjs-pino';
+import { LOG_REDACTION } from './logging/log-redaction';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { SqliteConstraintFilter } from './common/filters/sqlite-constraint.filter';
@@ -77,6 +78,7 @@ const PRETTY_LOGS =
             }
           : undefined,
         autoLogging: true,
+        redact: LOG_REDACTION,
       },
     }),
     ServeStaticModule.forRoot({

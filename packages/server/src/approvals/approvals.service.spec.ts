@@ -1023,6 +1023,35 @@ describe('ApprovalsService (integration)', () => {
       expect(result.rejected_reason).toBe('wrong match');
     });
 
+    it('reject still resolves the approval when its match no longer exists', async () => {
+      const approval = await seedMatchApproval(4244);
+      reconciliationStub.discardDraftMatch.mockRejectedValueOnce(
+        new NotFoundException('Reconciliation match 4244 not found'),
+      );
+
+      const result = await service.rejectApproval(approval.id, 'stale');
+
+      expect(result.status).toBe('rejected');
+      expect(result.rejected_reason).toBe('stale');
+    });
+
+    it('reject surfaces any other discard failure and leaves the approval pending', async () => {
+      const approval = await seedMatchApproval(4245);
+      reconciliationStub.discardDraftMatch.mockRejectedValueOnce(
+        new ConflictException('Reconciliation match 4245 is active, not draft'),
+      );
+
+      await expect(service.rejectApproval(approval.id, 'x')).rejects.toThrow(
+        /active, not draft/,
+      );
+      const row = await db
+        .selectFrom('approval')
+        .select('status')
+        .where('id', '=', approval.id)
+        .executeTakeFirstOrThrow();
+      expect(row.status).toBe('pending');
+    });
+
     it('rejects creating a reconciliation_match approval through the generic endpoint', async () => {
       await expect(
         service.createApproval({

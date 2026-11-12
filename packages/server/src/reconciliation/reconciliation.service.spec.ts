@@ -1654,6 +1654,49 @@ describe('ReconciliationService (integration)', () => {
     });
   });
 
+  describe('unmatch of a draft match', () => {
+    it('removes the draft and resolves its pending approval', async () => {
+      const supplier = await seedSupplier();
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        40000,
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay', amount: -40000 },
+      ]);
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId,
+          matchType: 'exact',
+          amountMatched: 40000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+      const matchId = staged.records[0].id;
+
+      await reconciliationService.unmatch(matchId);
+
+      const gone = await db
+        .selectFrom('reconciliation_match')
+        .select('id')
+        .where('id', '=', matchId)
+        .executeTakeFirst();
+      expect(gone).toBeUndefined();
+      const approval = await db
+        .selectFrom('approval')
+        .selectAll()
+        .where('object_type', '=', 'reconciliation_match')
+        .where('object_id', '=', matchId)
+        .executeTakeFirstOrThrow();
+      expect(approval.status).toBe('rejected');
+      expect(approval.rejected_reason).toMatch(/unmatched/);
+      expect(approval.resolved_at).not.toBeNull();
+    });
+  });
+
   describe('autoStageStatement', () => {
     it('auto-stages an unambiguous exact invoice-number match as a system draft, idempotently', async () => {
       const customer = await seedCustomer();
